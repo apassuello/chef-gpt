@@ -123,17 +123,14 @@ def _is_poultry(food_type: str) -> bool:
     Returns:
         True if food_type contains poultry keywords, False otherwise
 
-    TODO: Implement from CLAUDE.md lines 333-336
-    TODO: Check for keywords: chicken, turkey, duck, poultry, hen, fowl, goose
-    TODO: Return True if any keyword found in food_type string
-
     Example:
         >>> _is_poultry("chicken breast")
         True
         >>> _is_poultry("beef")
         False
     """
-    raise NotImplementedError("_is_poultry not yet implemented - see CLAUDE.md lines 333-336")
+    poultry_keywords = ["chicken", "turkey", "duck", "poultry", "hen", "fowl", "goose"]
+    return any(kw in food_type for kw in poultry_keywords)
 
 
 def _is_ground_meat(food_type: str) -> bool:

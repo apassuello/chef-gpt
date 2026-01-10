@@ -14,8 +14,8 @@ Reference: CLAUDE.md lines 825-842 (test case table)
 """
 
 import pytest
-# from server.validators import validate_start_cook, _is_poultry, _is_ground_meat
-# from server.exceptions import ValidationError
+from server.validators import validate_start_cook, _is_poultry, _is_ground_meat
+from server.exceptions import ValidationError
 
 
 # ==============================================================================
@@ -199,11 +199,10 @@ def test_missing_time():
 # ==============================================================================
 
 def test_is_poultry_chicken():
-    """Test _is_poultry recognizes chicken."""
-    # TODO: Implement test
-    # assert _is_poultry("chicken breast") is True
-    # assert _is_poultry("grilled chicken") is True
-    pass
+    """TC-HELP-01: Test _is_poultry recognizes chicken."""
+    assert _is_poultry("chicken breast") is True
+    assert _is_poultry("grilled chicken") is True
+    assert _is_poultry("chicken") is True
 
 
 def test_is_poultry_turkey():
