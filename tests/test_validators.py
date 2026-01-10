@@ -58,11 +58,9 @@ def test_temperature_exactly_minimum():
 
 def test_temperature_exactly_maximum():
     """TC-VAL-05: Temperature exactly at maximum (100.0°C) should pass."""
-    # TODO: Implement test
-    # data = {"temperature_celsius": 100.0, "time_minutes": 90}
-    # result = validate_start_cook(data)
-    # assert result["temperature_celsius"] == 100.0
-    pass
+    data = {"temperature_celsius": 100.0, "time_minutes": 90}
+    result = validate_start_cook(data)
+    assert result["temperature_celsius"] == 100.0
 
 
 # ==============================================================================
