@@ -107,7 +107,15 @@ def validate_start_cook(data: Dict[str, Any]) -> Dict[str, Any]:
         >>> validate_start_cook({"temperature_celsius": 56, "time_minutes": 90, "food_type": "chicken"})
         ValidationError: POULTRY_TEMP_UNSAFE
     """
-    raise NotImplementedError("validate_start_cook not yet implemented - see CLAUDE.md lines 258-342")
+    # 1. Check required fields
+    if "temperature_celsius" not in data:
+        raise ValidationError(
+            "MISSING_TEMPERATURE",
+            "temperature_celsius is required"
+        )
+
+    # TODO: Implement remaining validation
+    raise NotImplementedError("validate_start_cook partially implemented")
 
 
 def _is_poultry(food_type: str) -> bool:

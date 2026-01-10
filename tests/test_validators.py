@@ -176,12 +176,11 @@ def test_float_time_truncation():
 
 def test_missing_temperature():
     """TC-VAL-15: Missing temperature should fail."""
-    # TODO: Implement test
-    # data = {"time_minutes": 90}
-    # with pytest.raises(ValidationError) as exc_info:
-    #     validate_start_cook(data)
-    # assert exc_info.value.error_code == "MISSING_TEMPERATURE"
-    pass
+    data = {"time_minutes": 90}
+    with pytest.raises(ValidationError) as exc_info:
+        validate_start_cook(data)
+    assert exc_info.value.error_code == "MISSING_TEMPERATURE"
+    assert "temperature_celsius" in exc_info.value.message
 
 
 def test_missing_time():
