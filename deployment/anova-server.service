@@ -1,0 +1,30 @@
+[Unit]
+Description=Anova Sous Vide Control Server
+After=network.target cloudflared.service
+Wants=cloudflared.service
+
+[Service]
+Type=simple
+User=pi
+Group=pi
+WorkingDirectory=/opt/anova-assistant
+Environment="PATH=/opt/anova-assistant/venv/bin:/usr/local/bin:/usr/bin:/bin"
+ExecStart=/opt/anova-assistant/venv/bin/gunicorn \
+    --bind 127.0.0.1:5000 \
+    --workers 2 \
+    --timeout 30 \
+    --access-logfile /var/log/anova-server/access.log \
+    --error-logfile /var/log/anova-server/error.log \
+    "server.app:create_app()"
+Restart=always
+RestartSec=10
+
+# Security hardening
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/var/log/anova-server
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

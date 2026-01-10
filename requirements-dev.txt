@@ -1,0 +1,10 @@
+# Development-only Dependencies
+# Currently all dev dependencies are in requirements.txt for simplicity
+# This file is a placeholder for future dev-specific tools like:
+# - Type checkers (mypy)
+# - Linters (ruff, flake8)
+# - Code formatters (black)
+# - Documentation generators (sphinx)
+
+# To install dev dependencies in the future:
+# pip install -r requirements.txt -r requirements-dev.txt

@@ -1,0 +1,28 @@
+# Production Dependencies
+# Web framework
+flask==3.0.*
+
+# HTTP client for Anova Cloud API
+requests==2.31.*
+
+# Environment variable management (development)
+python-dotenv==1.0.*
+
+# Credential encryption (production)
+cryptography==42.*
+
+# Production WSGI server
+gunicorn==21.*
+
+# Development and Testing Dependencies
+# Testing framework
+pytest==7.*
+
+# Flask-specific test utilities
+pytest-flask==1.*
+
+# HTTP response mocking for Anova API tests
+responses==0.24.*
+
+# Code coverage reporting
+pytest-cov==4.*
