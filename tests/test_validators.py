@@ -212,11 +212,11 @@ def test_is_poultry_turkey():
 
 
 def test_is_poultry_false():
-    """Test _is_poultry returns False for non-poultry."""
-    # TODO: Implement test
-    # assert _is_poultry("beef") is False
-    # assert _is_poultry("pork") is False
-    pass
+    """TC-HELP-03: Test _is_poultry returns False for non-poultry."""
+    assert _is_poultry("beef") is False
+    assert _is_poultry("pork") is False
+    assert _is_poultry("steak") is False
+    assert _is_poultry("lamb") is False
 
 
 def test_is_ground_meat_burger():
