@@ -33,13 +33,11 @@ def test_valid_parameters():
 
 def test_temperature_too_low():
     """TC-VAL-02: Temperature below 40°C should fail."""
-    # TODO: Implement test
-    # data = {"temperature_celsius": 39.9, "time_minutes": 90}
-    # with pytest.raises(ValidationError) as exc_info:
-    #     validate_start_cook(data)
-    # assert exc_info.value.error_code == "TEMPERATURE_TOO_LOW"
-    # assert "danger zone" in exc_info.value.message.lower()
-    pass
+    data = {"temperature_celsius": 39.9, "time_minutes": 90}
+    with pytest.raises(ValidationError) as exc_info:
+        validate_start_cook(data)
+    assert exc_info.value.error_code == "TEMPERATURE_TOO_LOW"
+    assert "danger zone" in exc_info.value.message.lower()
 
 
 def test_temperature_too_high():

@@ -140,13 +140,21 @@ def validate_start_cook(data: Dict[str, Any]) -> Dict[str, Any]:
     # Extract optional food_type
     food_type = data.get("food_type", "").lower().strip() if data.get("food_type") else None
 
-    # TODO: Add range validation (temp, time)
+    # 3. Range validation - Temperature
+    if temp < MIN_TEMP_CELSIUS:
+        raise ValidationError(
+            "TEMPERATURE_TOO_LOW",
+            f"Temperature {temp}°C is below the safe minimum of {MIN_TEMP_CELSIUS}°C. "
+            f"Food below this temperature is in the bacterial danger zone."
+        )
+
+    # TODO: Add remaining range validation (temp max, time)
     # TODO: Add food safety validation
 
     # Return validated data
     return {
-        "temperature_celsius": round(float(data["temperature_celsius"]), 1),
-        "time_minutes": int(data["time_minutes"]),
+        "temperature_celsius": round(temp, 1),
+        "time_minutes": time,
         "food_type": food_type
     }
 
