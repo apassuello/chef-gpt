@@ -227,11 +227,11 @@ def test_is_ground_meat_burger():
 
 
 def test_is_ground_meat_false():
-    """Test _is_ground_meat returns False for whole cuts."""
-    # TODO: Implement test
-    # assert _is_ground_meat("steak") is False
-    # assert _is_ground_meat("chicken breast") is False
-    pass
+    """TC-HELP-05: Test _is_ground_meat returns False for whole cuts."""
+    assert _is_ground_meat("steak") is False
+    assert _is_ground_meat("chicken breast") is False
+    assert _is_ground_meat("pork chop") is False
+    assert _is_ground_meat("ribeye") is False
 
 
 # ==============================================================================
