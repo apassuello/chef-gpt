@@ -69,41 +69,33 @@ def test_temperature_exactly_maximum():
 
 def test_time_zero():
     """TC-VAL-06: Time of zero should fail."""
-    # TODO: Implement test
-    # data = {"temperature_celsius": 65.0, "time_minutes": 0}
-    # with pytest.raises(ValidationError) as exc_info:
-    #     validate_start_cook(data)
-    # assert exc_info.value.error_code == "TIME_TOO_SHORT"
-    pass
+    data = {"temperature_celsius": 65.0, "time_minutes": 0}
+    with pytest.raises(ValidationError) as exc_info:
+        validate_start_cook(data)
+    assert exc_info.value.error_code == "TIME_TOO_SHORT"
 
 
 def test_time_negative():
     """TC-VAL-07: Negative time should fail."""
-    # TODO: Implement test
-    # data = {"temperature_celsius": 65.0, "time_minutes": -1}
-    # with pytest.raises(ValidationError) as exc_info:
-    #     validate_start_cook(data)
-    # assert exc_info.value.error_code == "TIME_TOO_SHORT"
-    pass
+    data = {"temperature_celsius": 65.0, "time_minutes": -1}
+    with pytest.raises(ValidationError) as exc_info:
+        validate_start_cook(data)
+    assert exc_info.value.error_code == "TIME_TOO_SHORT"
 
 
 def test_time_exactly_maximum():
     """TC-VAL-08: Time exactly at maximum (5999) should pass."""
-    # TODO: Implement test
-    # data = {"temperature_celsius": 65.0, "time_minutes": 5999}
-    # result = validate_start_cook(data)
-    # assert result["time_minutes"] == 5999
-    pass
+    data = {"temperature_celsius": 65.0, "time_minutes": 5999}
+    result = validate_start_cook(data)
+    assert result["time_minutes"] == 5999
 
 
 def test_time_above_maximum():
     """TC-VAL-09: Time above maximum (6000) should fail."""
-    # TODO: Implement test
-    # data = {"temperature_celsius": 65.0, "time_minutes": 6000}
-    # with pytest.raises(ValidationError) as exc_info:
-    #     validate_start_cook(data)
-    # assert exc_info.value.error_code == "TIME_TOO_LONG"
-    pass
+    data = {"temperature_celsius": 65.0, "time_minutes": 6000}
+    with pytest.raises(ValidationError) as exc_info:
+        validate_start_cook(data)
+    assert exc_info.value.error_code == "TIME_TOO_LONG"
 
 
 # ==============================================================================

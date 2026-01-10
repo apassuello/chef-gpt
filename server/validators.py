@@ -155,7 +155,19 @@ def validate_start_cook(data: Dict[str, Any]) -> Dict[str, Any]:
             f"Water boils at 100°C."
         )
 
-    # TODO: Add remaining range validation (time)
+    # 4. Range validation - Time
+    if time < MIN_TIME_MINUTES:
+        raise ValidationError(
+            "TIME_TOO_SHORT",
+            f"Time {time} minutes is below the minimum of {MIN_TIME_MINUTES} minute."
+        )
+
+    if time > MAX_TIME_MINUTES:
+        raise ValidationError(
+            "TIME_TOO_LONG",
+            f"Time {time} minutes exceeds the device maximum of {MAX_TIME_MINUTES} minutes."
+        )
+
     # TODO: Add food safety validation
 
     # Return validated data
