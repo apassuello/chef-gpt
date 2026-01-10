@@ -24,12 +24,11 @@ from server.exceptions import ValidationError
 
 def test_valid_parameters():
     """TC-VAL-01: Valid parameters should pass."""
-    # TODO: Implement test
-    # data = {"temperature_celsius": 65.0, "time_minutes": 90}
-    # result = validate_start_cook(data)
-    # assert result["temperature_celsius"] == 65.0
-    # assert result["time_minutes"] == 90
-    pass
+    data = {"temperature_celsius": 65.0, "time_minutes": 90}
+    result = validate_start_cook(data)
+    assert result["temperature_celsius"] == 65.0
+    assert result["time_minutes"] == 90
+    assert result["food_type"] is None
 
 
 def test_temperature_too_low():

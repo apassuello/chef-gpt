@@ -120,8 +120,35 @@ def validate_start_cook(data: Dict[str, Any]) -> Dict[str, Any]:
             "time_minutes is required"
         )
 
-    # TODO: Implement remaining validation
-    raise NotImplementedError("validate_start_cook partially implemented")
+    # 2. Type validation with coercion
+    try:
+        temp = float(data["temperature_celsius"])
+    except (TypeError, ValueError):
+        raise ValidationError(
+            "INVALID_TEMPERATURE",
+            "temperature_celsius must be a number"
+        )
+
+    try:
+        time = int(data["time_minutes"])
+    except (TypeError, ValueError):
+        raise ValidationError(
+            "INVALID_TIME",
+            "time_minutes must be a number"
+        )
+
+    # Extract optional food_type
+    food_type = data.get("food_type", "").lower().strip() if data.get("food_type") else None
+
+    # TODO: Add range validation (temp, time)
+    # TODO: Add food safety validation
+
+    # Return validated data
+    return {
+        "temperature_celsius": round(float(data["temperature_celsius"]), 1),
+        "time_minutes": int(data["time_minutes"]),
+        "food_type": food_type
+    }
 
 
 def _is_poultry(food_type: str) -> bool:
