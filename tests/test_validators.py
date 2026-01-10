@@ -206,10 +206,9 @@ def test_is_poultry_chicken():
 
 
 def test_is_poultry_turkey():
-    """Test _is_poultry recognizes turkey."""
-    # TODO: Implement test
-    # assert _is_poultry("turkey") is True
-    pass
+    """TC-HELP-02: Test _is_poultry recognizes turkey."""
+    assert _is_poultry("turkey") is True
+    assert _is_poultry("roast turkey") is True
 
 
 def test_is_poultry_false():
