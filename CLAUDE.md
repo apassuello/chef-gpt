@@ -161,6 +161,8 @@ chef-gpt/
 
 ## Code Patterns
 
+**Note:** These patterns provide complete, working implementations for the behavioral contracts defined in `docs/03-component-architecture.md`. Each pattern demonstrates how to satisfy the specification requirements.
+
 ### 1. Error Handling Pattern
 
 **Principle:** All errors flow through custom exceptions that map to HTTP status codes. Never let raw exceptions reach the client.
@@ -1152,10 +1154,35 @@ The tunnel URL is auto-generated. Update Custom GPT Actions when it changes.
 
 ---
 
+
+## Component Implementation Examples
+
+**Note:** Complete implementation code has been moved to reduce this file's size.
+
+**See:** [`docs/COMPONENT-IMPLEMENTATIONS.md`](docs/COMPONENT-IMPLEMENTATIONS.md) for full, working implementations of all 7 components.
+
+**What's in the implementation guide:**
+- COMP-APP-01: app.py (Application factory)
+- COMP-ROUTE-01: routes.py (HTTP route handlers)
+- COMP-MW-01: middleware.py (Auth, logging, error handling)
+- COMP-VAL-01: validators.py (Input validation & food safety)
+- COMP-ANOVA-01: anova_client.py (Anova Cloud API client)
+- COMP-CFG-01: config.py (Configuration management)
+- COMP-EXC-01: exceptions.py (Exception hierarchy)
+
+Each implementation:
+- ✅ Satisfies behavioral contracts in `docs/03-component-architecture.md`
+- ✅ Includes cross-references to specifications
+- ✅ Contains complete, working Python code
+- ✅ Maps to specific requirement IDs (FR-XX, SEC-REQ-XX)
+
+---
+
 ## References
 
 - **API Specification:** See project knowledge base `05-api-specification.md`
-- **Component Architecture:** See `03-component-architecture.md`
+- **Component Architecture:** See `docs/03-component-architecture.md`
+- **Component Implementations:** See `docs/COMPONENT-IMPLEMENTATIONS.md`
 - **Security Architecture:** See `02-security-architecture.md`
 - **Food Safety Rules:** See `kb-domain-knowledge.md`
 - **Deployment Guide:** See `07-deployment-architecture.md`
