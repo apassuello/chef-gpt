@@ -42,12 +42,11 @@ def test_temperature_too_low():
 
 def test_temperature_too_high():
     """TC-VAL-03: Temperature above 100°C should fail."""
-    # TODO: Implement test
-    # data = {"temperature_celsius": 100.1, "time_minutes": 90}
-    # with pytest.raises(ValidationError) as exc_info:
-    #     validate_start_cook(data)
-    # assert exc_info.value.error_code == "TEMPERATURE_TOO_HIGH"
-    pass
+    data = {"temperature_celsius": 100.1, "time_minutes": 90}
+    with pytest.raises(ValidationError) as exc_info:
+        validate_start_cook(data)
+    assert exc_info.value.error_code == "TEMPERATURE_TOO_HIGH"
+    assert "100" in exc_info.value.message  # References water boiling point
 
 
 def test_temperature_exactly_minimum():

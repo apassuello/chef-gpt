@@ -148,7 +148,14 @@ def validate_start_cook(data: Dict[str, Any]) -> Dict[str, Any]:
             f"Food below this temperature is in the bacterial danger zone."
         )
 
-    # TODO: Add remaining range validation (temp max, time)
+    if temp > MAX_TEMP_CELSIUS:
+        raise ValidationError(
+            "TEMPERATURE_TOO_HIGH",
+            f"Temperature {temp}°C exceeds the safe maximum of {MAX_TEMP_CELSIUS}°C. "
+            f"Water boils at 100°C."
+        )
+
+    # TODO: Add remaining range validation (time)
     # TODO: Add food safety validation
 
     # Return validated data
