@@ -185,12 +185,11 @@ def test_missing_temperature():
 
 def test_missing_time():
     """TC-VAL-16: Missing time should fail."""
-    # TODO: Implement test
-    # data = {"temperature_celsius": 65.0}
-    # with pytest.raises(ValidationError) as exc_info:
-    #     validate_start_cook(data)
-    # assert exc_info.value.error_code == "MISSING_TIME"
-    pass
+    data = {"temperature_celsius": 65.0}
+    with pytest.raises(ValidationError) as exc_info:
+        validate_start_cook(data)
+    assert exc_info.value.error_code == "MISSING_TIME"
+    assert "time_minutes" in exc_info.value.message
 
 
 # ==============================================================================
