@@ -146,17 +146,14 @@ def _is_ground_meat(food_type: str) -> bool:
     Returns:
         True if food_type contains ground meat keywords, False otherwise
 
-    TODO: Implement from CLAUDE.md lines 338-341
-    TODO: Check for keywords: ground, mince, burger, sausage
-    TODO: Return True if any keyword found in food_type string
-
     Example:
         >>> _is_ground_meat("ground beef")
         True
         >>> _is_ground_meat("steak")
         False
     """
-    raise NotImplementedError("_is_ground_meat not yet implemented - see CLAUDE.md lines 338-341")
+    ground_keywords = ["ground", "mince", "burger", "sausage"]
+    return any(kw in food_type for kw in ground_keywords)
 
 
 def validate_device_id(device_id: Optional[str]) -> str:

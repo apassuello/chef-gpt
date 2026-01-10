@@ -220,11 +220,10 @@ def test_is_poultry_false():
 
 
 def test_is_ground_meat_burger():
-    """Test _is_ground_meat recognizes ground beef."""
-    # TODO: Implement test
-    # assert _is_ground_meat("ground beef") is True
-    # assert _is_ground_meat("burger") is True
-    pass
+    """TC-HELP-04: Test _is_ground_meat recognizes ground beef."""
+    assert _is_ground_meat("ground beef") is True
+    assert _is_ground_meat("burger") is True
+    assert _is_ground_meat("hamburger patty") is True
 
 
 def test_is_ground_meat_false():
