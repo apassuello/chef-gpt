@@ -269,12 +269,12 @@ def register_error_handlers(app: Flask) -> None:
 
     @app.errorhandler(NoActiveCookError)
     def handle_no_active_cook(error: NoActiveCookError):
-        """Map NoActiveCookError to 404 Not Found."""
+        """Map NoActiveCookError to 409 Conflict."""
         logger.warning(f"No active cook: {error.message}")
         return jsonify({
             "error": "NO_ACTIVE_COOK",
             "message": error.message
-        }), 404
+        }), 409
 
     @app.errorhandler(AuthenticationError)
     def handle_authentication_error(error: AuthenticationError):

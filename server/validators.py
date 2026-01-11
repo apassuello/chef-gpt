@@ -140,6 +140,22 @@ def validate_start_cook(data: Dict[str, Any]) -> Dict[str, Any]:
     # Extract optional food_type
     food_type = data.get("food_type", "").lower().strip() if data.get("food_type") else None
 
+    # Validate food_type string (if provided)
+    if food_type:
+        # Check max length (spec requires max 100 characters)
+        if len(food_type) > 100:
+            raise ValidationError(
+                "FOOD_TYPE_TOO_LONG",
+                f"food_type must be 100 characters or less (got {len(food_type)} characters)"
+            )
+
+        # Check for null bytes (security: null bytes can cause issues in some systems)
+        if '\x00' in food_type:
+            raise ValidationError(
+                "INVALID_FOOD_TYPE",
+                "food_type contains invalid characters (null bytes not allowed)"
+            )
+
     # 3. Range validation - Temperature
     if temp < MIN_TEMP_CELSIUS:
         raise ValidationError(

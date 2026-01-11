@@ -35,7 +35,7 @@ api = Blueprint('api', __name__)
 # ==============================================================================
 
 @api.route('/health', methods=['GET'])
-def health() -> Tuple[Dict[str, str], int]:
+def health() -> Tuple[Dict[str, Any], int]:
     """
     Health check endpoint.
 
@@ -43,16 +43,27 @@ def health() -> Tuple[Dict[str, str], int]:
     if the server is alive and responding.
 
     Returns:
-        JSON response: {"status": "ok"}
+        JSON response: {"status": "ok", "version": "1.0.0", "timestamp": "ISO8601"}
         HTTP status: 200
 
     Example:
         GET /health
-        Response: {"status": "ok"}
+        Response: {
+            "status": "ok",
+            "version": "1.0.0",
+            "timestamp": "2025-01-11T12:00:00Z"
+        }
 
     Reference: CLAUDE.md Section "API Endpoints Reference > GET /health" (lines 1028-1039)
+    Reference: docs/05-api-specification.md lines 278-302
     """
-    return jsonify({"status": "ok"}), 200
+    from datetime import datetime
+
+    return jsonify({
+        "status": "ok",
+        "version": "1.0.0",
+        "timestamp": datetime.utcnow().isoformat() + "Z"
+    }), 200
 
 
 # ==============================================================================
@@ -172,7 +183,7 @@ def stop_cook() -> Tuple[Dict[str, Any], int]:
 
     Error responses:
     - 401: Missing or invalid API key
-    - 404: No active cook (NO_ACTIVE_COOK)
+    - 409: No active cook (NO_ACTIVE_COOK)
     - 503: Device offline (DEVICE_OFFLINE)
 
     Reference: CLAUDE.md Section "API Endpoints Reference > POST /stop-cook" (lines 1004-1026)
@@ -198,7 +209,7 @@ def stop_cook() -> Tuple[Dict[str, Any], int]:
 # - ValidationError → 400 Bad Request
 # - DeviceOfflineError → 503 Service Unavailable
 # - DeviceBusyError → 409 Conflict
-# - NoActiveCookError → 404 Not Found
+# - NoActiveCookError → 409 Conflict
 # - AnovaAPIError → 500 Internal Server Error
 # - AuthenticationError → 500 Internal Server Error
 #

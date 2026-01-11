@@ -419,7 +419,8 @@ class AnovaClient:
                 {
                     "success": bool,
                     "message": str,
-                    "device_state": str
+                    "device_state": str,
+                    "final_temp_celsius": float | None
                 }
 
         Raises:
@@ -428,12 +429,16 @@ class AnovaClient:
             AnovaAPIError: For other API errors
 
         Reference: COMP-ANOVA-01 (docs/03-component-architecture.md Section 4.3.1)
+        Reference: docs/05-api-specification.md lines 254-263
         """
-        # Check if there's an active cook
+        # Check if there's an active cook and capture final temperature
         try:
             status = self.get_status()
             if not status['is_running']:
                 raise NoActiveCookError("No active cook to stop")
+
+            # Capture current temperature before stopping
+            final_temp = status['current_temp_celsius']
         except DeviceOfflineError:
             raise
 
@@ -444,7 +449,8 @@ class AnovaClient:
         return {
             'success': True,
             'message': 'Cook stopped successfully',
-            'device_state': 'idle'
+            'device_state': 'idle',
+            'final_temp_celsius': final_temp
         }
 
 

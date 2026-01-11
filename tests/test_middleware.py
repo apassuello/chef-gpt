@@ -292,8 +292,13 @@ def test_device_busy_returns_409(test_app):
     assert data['message'] == 'Device is already cooking'
 
 
-def test_no_active_cook_returns_404(test_app):
-    """TC-MW-12: NoActiveCookError mapped to 404 Not Found."""
+def test_no_active_cook_returns_409(test_app):
+    """TC-MW-12: NoActiveCookError mapped to 409 Conflict.
+
+    Updated from 404 to 409 per API spec (05-api-specification.md line 266).
+    409 Conflict is more accurate than 404 Not Found because the endpoint exists,
+    but the request conflicts with the current state (no active cook to stop).
+    """
     @test_app.route('/test')
     def test_route():
         raise NoActiveCookError('No active cook session')
@@ -301,7 +306,7 @@ def test_no_active_cook_returns_404(test_app):
     client = test_app.test_client()
     response = client.get('/test')
 
-    assert response.status_code == 404
+    assert response.status_code == 409
     data = response.get_json()
     assert data['error'] == 'NO_ACTIVE_COOK'
     assert data['message'] == 'No active cook session'
