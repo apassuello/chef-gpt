@@ -1,187 +1,261 @@
 """
 Configuration management for development and production environments.
 
-Development: Loads from .env file (gitignored)
+Development: Loads from environment variables (.env file, gitignored)
 Production: Loads from encrypted JSON file (for Raspberry Pi persistence)
 
 Required environment variables:
 - ANOVA_EMAIL: Anova account email
 - ANOVA_PASSWORD: Anova account password
 - DEVICE_ID: Anova device ID
-- API_KEY: Bearer token for ChatGPT authentication
-- DEBUG: Enable debug mode (optional, default: False)
-- ENCRYPTION_KEY: Fernet encryption key (production only)
+
+Optional environment variables:
+- API_KEY: Bearer token for ChatGPT authentication (None = no auth)
+- DEBUG: Enable debug mode (default: False)
 
 Reference: CLAUDE.md Section "Configuration Management"
-Reference: docs/02-security-architecture.md Section 4.3
+Reference: docs/03-component-architecture.md Section 4.4.1 (COMP-CFG-01)
 """
 
 import os
 import json
-from typing import Dict, Any, Optional
+import logging
+from dataclasses import dataclass
 from pathlib import Path
-from dotenv import load_dotenv
+from typing import Self
+
+logger = logging.getLogger(__name__)
 
 
-# ==============================================================================
-# CONFIGURATION LOADING
-# ==============================================================================
-
-def load_config() -> Dict[str, Any]:
+@dataclass
+class Config:
     """
+    Application configuration with credentials and safety constants.
+
+    Supports multiple configuration sources with priority order:
+    1. Environment variables (highest priority)
+    2. Encrypted file (production)
+    3. Plain JSON file (development only)
+
+    Safety constants are hardcoded and non-configurable to prevent
+    misconfiguration from bypassing food safety rules.
+    """
+
+    # Anova credentials (required)
+    ANOVA_EMAIL: str
+    ANOVA_PASSWORD: str
+    DEVICE_ID: str
+
+    # Optional API key for ChatGPT auth
+    API_KEY: str | None = None
+
+    # Server settings
+    HOST: str = "0.0.0.0"
+    PORT: int = 5000
+    DEBUG: bool = False
+
+    # Safety limits (hardcoded, non-configurable)
+    # These match validators.py constants
+    MIN_TEMP_CELSIUS: float = 40.0
+    MAX_TEMP_CELSIUS: float = 100.0
+    MAX_TIME_MINUTES: int = 5999
+
+    @classmethod
+    def load(cls) -> Self:
+        """
+        Load configuration from available source.
+
+        Priority order:
+        1. Environment variables (if ANOVA_EMAIL env var exists)
+        2. Encrypted file (config/credentials.enc)
+        3. Plain JSON file (config/credentials.json)
+
+        Returns:
+            Config instance with all required fields populated
+
+        Raises:
+            ValueError: No configuration source found or required fields missing
+            NotImplementedError: Encrypted file exists but decryption not implemented
+
+        Specification: COMP-CFG-01 (docs/03-component-architecture.md Section 4.4.1)
+        """
+        # Try environment first (development/testing)
+        if os.getenv("ANOVA_EMAIL"):
+            logger.info("Loading configuration from environment variables")
+            return cls._from_env()
+
+        # Try encrypted file (production)
+        config_path = Path(__file__).parent.parent / "config" / "credentials.enc"
+        if config_path.exists():
+            logger.info(f"Loading configuration from {config_path}")
+            return cls._from_encrypted_file(config_path)
+
+        # Try plain JSON (development only)
+        plain_config = Path(__file__).parent.parent / "config" / "credentials.json"
+        if plain_config.exists():
+            logger.warning("Loading from plain JSON config - use encrypted file in production!")
+            return cls._from_json_file(plain_config)
+
+        # No config source found
+        raise ValueError(
+            "Configuration not found. Set ANOVA_EMAIL, ANOVA_PASSWORD, "
+            "and DEVICE_ID environment variables, or provide config/credentials.enc"
+        )
+
+    @classmethod
+    def _from_env(cls) -> Self:
+        """
+        Load configuration from environment variables.
+
+        Returns:
+            Config instance
+
+        Raises:
+            ValueError: If required environment variables are missing
+        """
+        email = os.environ.get("ANOVA_EMAIL")
+        password = os.environ.get("ANOVA_PASSWORD")
+        device_id = os.environ.get("DEVICE_ID")
+
+        # Validate required fields
+        if not all([email, password, device_id]):
+            missing = []
+            if not email:
+                missing.append("ANOVA_EMAIL")
+            if not password:
+                missing.append("ANOVA_PASSWORD")
+            if not device_id:
+                missing.append("DEVICE_ID")
+
+            raise ValueError(f"Missing required environment variables: {missing}")
+
+        # Parse DEBUG env var
+        debug = os.environ.get("DEBUG", "").lower() == "true"
+
+        return cls(
+            ANOVA_EMAIL=email,
+            ANOVA_PASSWORD=password,
+            DEVICE_ID=device_id,
+            API_KEY=os.environ.get("API_KEY"),
+            DEBUG=debug
+        )
+
+    @classmethod
+    def _from_json_file(cls, path: Path) -> Self:
+        """
+        Load configuration from plain JSON file.
+
+        Development only - plain JSON files are not secure for production.
+
+        Args:
+            path: Path to JSON config file
+
+        Returns:
+            Config instance
+
+        Raises:
+            ValueError: If JSON is invalid or missing required fields
+            FileNotFoundError: If file doesn't exist
+        """
+        with open(path) as f:
+            data = json.load(f)
+
+        # Validate required fields
+        required = ["anova_email", "anova_password", "device_id"]
+        missing = [field for field in required if field not in data]
+        if missing:
+            raise ValueError(f"JSON config missing required fields: {missing}")
+
+        return cls(
+            ANOVA_EMAIL=data["anova_email"],
+            ANOVA_PASSWORD=data["anova_password"],
+            DEVICE_ID=data["device_id"],
+            API_KEY=data.get("api_key"),
+            DEBUG=data.get("debug", False)
+        )
+
+    @classmethod
+    def _from_encrypted_file(cls, path: Path) -> Self:
+        """
+        Load configuration from encrypted file.
+
+        Uses AES-256-GCM with key derived from machine identifier.
+        This is a placeholder for Phase 2B implementation.
+
+        Args:
+            path: Path to encrypted config file
+
+        Returns:
+            Config instance
+
+        Raises:
+            NotImplementedError: Encrypted file loading not yet implemented
+
+        TODO: Implement with cryptography library in Phase 2B
+        TODO: Use Fernet symmetric encryption
+        TODO: Derive key from ENCRYPTION_KEY environment variable
+        """
+        raise NotImplementedError(
+            "Encrypted config loading not yet implemented. "
+            "Use environment variables or plain JSON for now."
+        )
+
+
+# ==============================================================================
+# LEGACY FUNCTION-BASED API (DEPRECATED)
+# ==============================================================================
+# These functions are kept for backward compatibility but should not be used.
+# Use Config.load() instead.
+
+
+def load_config():
+    """
+    DEPRECATED: Use Config.load() instead.
+
     Load configuration from environment.
-
-    Development mode:
-    - Loads from .env file using python-dotenv
-    - .env file is gitignored (never commit credentials!)
-
-    Production mode:
-    - Loads from encrypted JSON file (credentials.enc)
-    - Falls back to .env if encrypted file doesn't exist
-
-    Returns:
-        Configuration dictionary with keys:
-            - anova_email: Anova account email
-            - anova_password: Anova account password
-            - device_id: Anova device ID
-            - api_key: API key for ChatGPT authentication
-            - debug: Debug mode flag (default: False)
-
-    Raises:
-        RuntimeError: If required environment variables are missing
-
-    TODO: Implement from CLAUDE.md lines 1044-1055
-    TODO: Load from .env file using load_dotenv()
-    TODO: Get required env vars: ANOVA_EMAIL, ANOVA_PASSWORD, DEVICE_ID, API_KEY
-    TODO: Validate all required vars are present (raise RuntimeError if missing)
-    TODO: Return dict with configuration values
-    TODO: Support DEBUG env var (optional, default: False)
-
-    Example .env file:
-        ANOVA_EMAIL=user@example.com
-        ANOVA_PASSWORD=secret123
-        DEVICE_ID=abc123
-        API_KEY=sk-anova-your-key
-        DEBUG=true
-
-    Security notes:
-    - .env file must be in .gitignore (never commit!)
-    - Validate required vars are present at startup
-    - Log errors without exposing credential values
     """
-    raise NotImplementedError("load_config not yet implemented - see CLAUDE.md lines 1044-1055")
+    config = Config.load()
+    return {
+        "anova_email": config.ANOVA_EMAIL,
+        "anova_password": config.ANOVA_PASSWORD,
+        "device_id": config.DEVICE_ID,
+        "api_key": config.API_KEY,
+        "debug": config.DEBUG
+    }
 
 
-def load_encrypted_config(filepath: str) -> Dict[str, Any]:
+def load_encrypted_config(filepath: str):
     """
+    DEPRECATED: Use Config._from_encrypted_file() instead.
+
     Load encrypted configuration file (production).
-
-    Used on Raspberry Pi to persist credentials across reboots securely.
-    Credentials are encrypted using Fernet symmetric encryption.
-
-    Args:
-        filepath: Path to encrypted config file (e.g., '/opt/anova-assistant/credentials.enc')
-
-    Returns:
-        Decrypted configuration dictionary
-
-    Raises:
-        FileNotFoundError: If encrypted file doesn't exist
-        ValueError: If decryption fails (wrong key or corrupted file)
-        RuntimeError: If ENCRYPTION_KEY environment variable missing
-
-    TODO: Implement from CLAUDE.md lines 1070-1080
-    TODO: Get ENCRYPTION_KEY from environment
-    TODO: Create Fernet instance with encryption key
-    TODO: Read encrypted file
-    TODO: Decrypt and parse JSON
-    TODO: Return configuration dict
-
-    Security notes:
-    - Encryption key derived from hardware or environment
-    - File permissions must be 0600 (owner read/write only)
-    - Never log decrypted credentials
-
-    Reference: CLAUDE.md lines 1063-1095
-    Reference: docs/02-security-architecture.md Section 4.3
     """
-    raise NotImplementedError("load_encrypted_config not yet implemented - see CLAUDE.md lines 1070-1080")
+    return Config._from_encrypted_file(Path(filepath))
 
 
-def save_encrypted_config(filepath: str, config: Dict[str, Any]) -> None:
+def save_encrypted_config(filepath: str, config):
     """
+    DEPRECATED: Not implemented.
+
     Save configuration as encrypted file (production).
-
-    Encrypts credentials and saves to file with restrictive permissions.
-    Used during initial Raspberry Pi setup.
-
-    Args:
-        filepath: Path to save encrypted config (e.g., '/opt/anova-assistant/credentials.enc')
-        config: Configuration dictionary to encrypt
-
-    Raises:
-        RuntimeError: If ENCRYPTION_KEY environment variable missing
-
-    TODO: Implement from CLAUDE.md lines 1082-1094
-    TODO: Get ENCRYPTION_KEY from environment
-    TODO: Create Fernet instance with encryption key
-    TODO: Convert config dict to JSON string
-    TODO: Encrypt JSON string
-    TODO: Write encrypted bytes to file
-    TODO: Set file permissions to 0600 (owner read/write only)
-
-    Security notes:
-    - File permissions MUST be 0600 (owner only)
-    - Directory permissions should be 0700
-    - Never log plaintext credentials during encryption
-
-    Reference: CLAUDE.md lines 1082-1094
-    Reference: docs/02-security-architecture.md Section 4.3
     """
-    raise NotImplementedError("save_encrypted_config not yet implemented - see CLAUDE.md lines 1082-1094")
+    raise NotImplementedError("save_encrypted_config not yet implemented")
 
 
-def validate_config(config: Dict[str, Any]) -> None:
+def validate_config(config):
     """
+    DEPRECATED: Validation now happens in Config._from_env() and Config._from_json_file().
+
     Validate configuration has all required fields.
-
-    Args:
-        config: Configuration dictionary to validate
-
-    Raises:
-        RuntimeError: If required fields are missing
-
-    TODO: Implement validation
-    TODO: Check required keys: anova_email, anova_password, device_id, api_key
-    TODO: Raise RuntimeError with clear message if any required key missing
-    TODO: Validate values are not empty strings
     """
-    raise NotImplementedError("validate_config not yet implemented")
+    raise NotImplementedError("validate_config not yet implemented - use Config.load() instead")
 
 
-# ==============================================================================
-# HELPER FUNCTIONS
-# ==============================================================================
-
-def get_encryption_key() -> bytes:
+def get_encryption_key():
     """
+    DEPRECATED: Not implemented.
+
     Get encryption key from environment.
-
-    Returns:
-        Encryption key as bytes (Fernet-compatible)
-
-    Raises:
-        RuntimeError: If ENCRYPTION_KEY not set
-
-    TODO: Implement encryption key retrieval
-    TODO: Get ENCRYPTION_KEY from environment
-    TODO: Validate key is valid Fernet key (44 bytes base64-encoded)
-    TODO: Return key as bytes
-
-    Note: In production, encryption key can be:
-    - Derived from hardware (CPU serial number)
-    - Stored in environment variable
-    - Generated on first run and persisted securely
     """
     raise NotImplementedError("get_encryption_key not yet implemented")
 
