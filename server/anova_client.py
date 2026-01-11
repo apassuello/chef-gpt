@@ -24,7 +24,7 @@ from typing import Dict, Any, Optional
 from datetime import datetime, timedelta
 import requests
 
-from .config import load_config
+from .config import Config
 from .exceptions import (
     AnovaAPIError,
     DeviceOfflineError,
@@ -44,56 +44,62 @@ class AnovaClient:
     Maintains JWT tokens and refreshes them automatically when expired.
 
     Attributes:
-        email: Anova account email
-        password: Anova account password
-        device_id: Anova device ID
-        access_token: Firebase JWT access token (expires after 1 hour)
-        refresh_token: Firebase refresh token (long-lived)
-        token_expiry: When the access token expires
+        config: Configuration with credentials and device ID
+        session: Persistent HTTP session for connection reuse
+        _access_token: Firebase JWT access token (expires after 1 hour)
+        _refresh_token: Firebase refresh token (long-lived)
+        _token_expiry: When the access token expires
 
     Example usage:
-        client = AnovaClient()
-        client.start_cook(temperature=65.0, time=90, device_id="abc123")
-        status = client.get_status(device_id="abc123")
-        client.stop_cook(device_id="abc123")
-
-    TODO: Implement Firebase authentication flow
-    TODO: Implement token refresh logic
-    TODO: Implement start_cook(), get_status(), stop_cook()
-    TODO: Handle device state validation (check if cooking before starting)
-    TODO: Handle offline devices gracefully
-    TODO: Add retry logic for transient errors
+        config = Config.load()
+        client = AnovaClient(config)
+        client.start_cook(temperature_c=65.0, time_minutes=90)
+        status = client.get_status()
+        client.stop_cook()
 
     Reference: docs/02-security-architecture.md Section 4
     """
 
     # Firebase API endpoints
     FIREBASE_AUTH_URL = "https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword"
-    FIREBASE_REFRESH_URL = "https://identitytoolkit.googleapis.com/v1/token"
-    FIREBASE_API_KEY = os.getenv('FIREBASE_API_KEY')  # Load from environment
+    FIREBASE_REFRESH_URL = "https://securetoken.googleapis.com/v1/token"
 
     # Anova API endpoints
     ANOVA_BASE_URL = "https://anovaculinary.io/api/v1"
 
-    def __init__(self, config: Optional[Dict[str, Any]] = None):
+    # Token refresh buffer (refresh if expiring within this time)
+    TOKEN_REFRESH_BUFFER = timedelta(minutes=5)
+
+    def __init__(self, config: Config):
         """
         Initialize Anova client.
 
         Args:
-            config: Optional configuration dict. If not provided, loads from environment.
+            config: Configuration with ANOVA_EMAIL, ANOVA_PASSWORD, DEVICE_ID
 
         Raises:
-            RuntimeError: If required configuration missing
+            AuthenticationError: If authentication fails
 
-        TODO: Implement initialization
-        TODO: Load config from argument or environment
-        TODO: Extract email, password, device_id from config
-        TODO: Initialize token attributes to None
-        TODO: Call authenticate() to get initial tokens
+        Reference: COMP-ANOVA-01 (docs/03-component-architecture.md Section 4.3.1)
         """
-        raise NotImplementedError("AnovaClient.__init__ not yet implemented")
+        self.config = config
+        self.session = requests.Session()
+        self.session.headers.update({
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
+        })
 
-    def authenticate(self) -> None:
+        # Initialize empty token state
+        self._access_token: Optional[str] = None
+        self._refresh_token: Optional[str] = None
+        self._token_expiry: Optional[datetime] = None
+
+        # Authenticate immediately
+        self._authenticate()
+
+        logger.info("AnovaClient initialized successfully")
+
+    def _authenticate(self) -> None:
         """
         Authenticate with Firebase to get JWT tokens.
 
@@ -102,13 +108,6 @@ class AnovaClient:
 
         Raises:
             AuthenticationError: If authentication fails
-
-        TODO: Implement Firebase authentication
-        TODO: POST to FIREBASE_AUTH_URL with email, password, API key
-        TODO: Extract idToken (access token) and refreshToken from response
-        TODO: Calculate token expiry (Firebase tokens expire after 1 hour)
-        TODO: Store tokens and expiry in instance attributes
-        TODO: Handle authentication errors (invalid credentials, network errors)
 
         API Request:
             POST https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key={API_KEY}
@@ -119,28 +118,40 @@ class AnovaClient:
 
         Reference: docs/02-security-architecture.md Section 4.1
         """
-        raise NotImplementedError("authenticate not yet implemented")
+        firebase_api_key = os.getenv('FIREBASE_API_KEY')
+        if not firebase_api_key:
+            raise AuthenticationError("FIREBASE_API_KEY environment variable not set")
 
-    def _ensure_valid_token(self) -> None:
-        """
-        Refresh token if expired or about to expire.
+        url = f"{self.FIREBASE_AUTH_URL}?key={firebase_api_key}"
+        payload = {
+            "email": self.config.ANOVA_EMAIL,
+            "password": self.config.ANOVA_PASSWORD,
+            "returnSecureToken": True
+        }
 
-        Checks if access token is expired or will expire within 5 minutes.
-        If so, refreshes the token using the refresh token.
+        try:
+            response = requests.post(url, json=payload, timeout=10)
 
-        Raises:
-            AuthenticationError: If token refresh fails
+            if response.status_code != 200:
+                error_msg = response.json().get("error", {}).get("message", "Unknown error")
+                raise AuthenticationError(f"Firebase authentication failed: {error_msg}")
 
-        TODO: Implement token refresh logic from CLAUDE.md line 1117-1125
-        TODO: Check if token_expiry is None or expired
-        TODO: Call _refresh_token() if expired
-        TODO: Log token refresh events (without logging the actual tokens!)
+            data = response.json()
+            self._access_token = data["idToken"]
+            self._refresh_token = data["refreshToken"]
 
-        Reference: CLAUDE.md Section "Common Gotchas > 1. Token Expiration"
-        """
-        raise NotImplementedError("_ensure_valid_token not yet implemented")
+            # Calculate token expiry (expiresIn is in seconds)
+            expires_in = int(data["expiresIn"])
+            self._token_expiry = datetime.now() + timedelta(seconds=expires_in)
 
-    def _refresh_token(self) -> None:
+            logger.info("Firebase authentication successful")
+
+        except requests.exceptions.RequestException as e:
+            raise AuthenticationError(f"Network error during authentication: {str(e)}")
+        except KeyError as e:
+            raise AuthenticationError(f"Unexpected response format from Firebase: missing {e}")
+
+    def _refresh_access_token(self) -> None:
         """
         Refresh the access token using the refresh token.
 
@@ -150,14 +161,8 @@ class AnovaClient:
         Raises:
             AuthenticationError: If refresh fails
 
-        TODO: Implement token refresh
-        TODO: POST to FIREBASE_REFRESH_URL with refresh_token
-        TODO: Extract new idToken from response
-        TODO: Update access_token and token_expiry
-        TODO: Handle refresh errors (invalid refresh token, network errors)
-
         API Request:
-            POST https://identitytoolkit.googleapis.com/v1/token?key={API_KEY}
+            POST https://securetoken.googleapis.com/v1/token?key={API_KEY}
             Body: {"grant_type": "refresh_token", "refresh_token": "..."}
 
         API Response:
@@ -165,112 +170,282 @@ class AnovaClient:
 
         Reference: docs/02-security-architecture.md Section 4.1
         """
-        raise NotImplementedError("_refresh_token not yet implemented")
+        firebase_api_key = os.getenv('FIREBASE_API_KEY')
+        if not firebase_api_key:
+            raise AuthenticationError("FIREBASE_API_KEY environment variable not set")
 
-    def start_cook(self, temperature: float, time: int, device_id: str) -> Dict[str, Any]:
+        url = f"{self.FIREBASE_REFRESH_URL}?key={firebase_api_key}"
+        payload = {
+            "grant_type": "refresh_token",
+            "refresh_token": self._refresh_token
+        }
+
+        try:
+            response = requests.post(url, json=payload, timeout=10)
+
+            if response.status_code != 200:
+                # Refresh failed, need to re-authenticate
+                logger.warning("Token refresh failed, re-authenticating")
+                self._authenticate()
+                return
+
+            data = response.json()
+            self._access_token = data["id_token"]
+            self._refresh_token = data.get("refresh_token", self._refresh_token)
+
+            # Calculate token expiry
+            expires_in = int(data["expires_in"])
+            self._token_expiry = datetime.now() + timedelta(seconds=expires_in)
+
+            logger.info("Access token refreshed successfully")
+
+        except requests.exceptions.RequestException as e:
+            # Network error, try full re-authentication
+            logger.warning(f"Network error during token refresh: {e}, re-authenticating")
+            self._authenticate()
+        except KeyError as e:
+            logger.warning(f"Unexpected response format during token refresh: {e}, re-authenticating")
+            self._authenticate()
+
+    def _ensure_authenticated(self) -> None:
+        """
+        Ensure we have a valid access token.
+
+        Checks if token is expired or will expire within TOKEN_REFRESH_BUFFER (5 minutes).
+        If so, refreshes the token using the refresh token.
+
+        Raises:
+            AuthenticationError: If token refresh or re-authentication fails
+        """
+        if self._token_expiry is None:
+            # No token, need to authenticate
+            self._authenticate()
+            return
+
+        # Check if token is expired or will expire soon
+        now = datetime.now()
+        if now >= (self._token_expiry - self.TOKEN_REFRESH_BUFFER):
+            logger.info("Access token expired or expiring soon, refreshing")
+            self._refresh_access_token()
+
+    def _api_request(self, method: str, endpoint: str, **kwargs) -> Dict[str, Any]:
+        """
+        Make an authenticated request to the Anova API.
+
+        Args:
+            method: HTTP method (GET, POST, etc.)
+            endpoint: API endpoint path (e.g., "/devices/{device_id}")
+            **kwargs: Additional arguments passed to requests (json, params, etc.)
+
+        Returns:
+            Response JSON as dictionary
+
+        Raises:
+            DeviceOfflineError: If device returns 404
+            AnovaAPIError: For other API errors
+        """
+        # Ensure we have a valid token
+        self._ensure_authenticated()
+
+        # Build full URL
+        url = f"{self.ANOVA_BASE_URL}{endpoint}"
+
+        # Add authorization header
+        headers = kwargs.pop('headers', {})
+        headers['Authorization'] = f"Bearer {self._access_token}"
+
+        try:
+            response = self.session.request(
+                method=method,
+                url=url,
+                headers=headers,
+                timeout=10,
+                **kwargs
+            )
+
+            # Handle specific status codes
+            if response.status_code == 404:
+                raise DeviceOfflineError("Device not found or offline")
+
+            if response.status_code >= 400:
+                error_msg = response.json().get("error", "Unknown error")
+                raise AnovaAPIError(f"Anova API error ({response.status_code}): {error_msg}", response.status_code)
+
+            return response.json()
+
+        except requests.exceptions.Timeout:
+            raise AnovaAPIError("Request timeout", 503)
+        except requests.exceptions.RequestException as e:
+            raise AnovaAPIError(f"Network error: {str(e)}", 503)
+
+    def _map_state(self, anova_state: str) -> str:
+        """
+        Map Anova device state to standard state names.
+
+        Args:
+            anova_state: State from Anova API
+
+        Returns:
+            Normalized state: "idle", "preheating", "cooking", or "done"
+        """
+        state_map = {
+            'idle': 'idle',
+            'preheating': 'preheating',
+            'cooking': 'cooking',
+            'maintaining': 'cooking',  # Maintaining temp = cooking
+            'done': 'done',
+            'stopped': 'idle'
+        }
+
+        normalized = anova_state.lower()
+        return state_map.get(normalized, 'idle')
+
+    def get_status(self) -> Dict[str, Any]:
+        """
+        Get current device status.
+
+        Returns:
+            Dict with current status:
+                {
+                    "device_online": bool,
+                    "state": str,  # idle, preheating, cooking, done
+                    "current_temp_celsius": float,
+                    "target_temp_celsius": float|None,
+                    "time_remaining_minutes": int|None,
+                    "time_elapsed_minutes": int|None,
+                    "is_running": bool
+                }
+
+        Raises:
+            DeviceOfflineError: If device is offline (404)
+            AnovaAPIError: For other API errors
+
+        Reference: COMP-ANOVA-01 (docs/03-component-architecture.md Section 4.3.1)
+        """
+        endpoint = f"/devices/{self.config.DEVICE_ID}"
+
+        try:
+            data = self._api_request('GET', endpoint)
+
+            # Parse Anova response
+            state = self._map_state(data.get('cookerState', 'idle'))
+            is_running = state in ['preheating', 'cooking']
+
+            # Convert times from seconds to minutes
+            time_remaining = data.get('cookTimeRemaining')
+            time_elapsed = data.get('cookTimeElapsed')
+
+            return {
+                'device_online': True,
+                'state': state,
+                'current_temp_celsius': float(data.get('currentTemperature', 0)),
+                'target_temp_celsius': float(data['targetTemperature']) if data.get('targetTemperature') else None,
+                'time_remaining_minutes': int(time_remaining // 60) if time_remaining else None,
+                'time_elapsed_minutes': int(time_elapsed // 60) if time_elapsed else None,
+                'is_running': is_running
+            }
+
+        except DeviceOfflineError:
+            raise
+        except AnovaAPIError:
+            raise
+
+    def start_cook(self, temperature_c: float, time_minutes: int) -> Dict[str, Any]:
         """
         Start a cooking session.
 
         Args:
-            temperature: Target temperature in Celsius (validated by caller)
-            time: Cook time in minutes (validated by caller)
-            device_id: Anova device ID
+            temperature_c: Target temperature in Celsius (validated by caller)
+            time_minutes: Cook time in minutes (validated by caller)
 
         Returns:
             Dict with cook start confirmation:
-                {"status": "started", "target_temp_celsius": 65.0, "time_minutes": 90, "device_id": "abc123"}
+                {
+                    "success": bool,
+                    "message": str,
+                    "cook_id": str,
+                    "device_state": str,
+                    "target_temp_celsius": float,
+                    "time_minutes": int,
+                    "estimated_completion": str  # ISO8601 timestamp
+                }
 
         Raises:
             DeviceOfflineError: If device is offline
             DeviceBusyError: If device is already cooking
             AnovaAPIError: For other API errors
 
-        TODO: Implement start cook from CLAUDE.md line 1127-1137
-        TODO: Check token validity with _ensure_valid_token()
-        TODO: Check device status (is it already cooking?)
-        TODO: POST to {ANOVA_BASE_URL}/devices/{device_id}/start
-        TODO: Include access token in Authorization header
-        TODO: Handle errors (offline, busy, API errors)
-        TODO: Return success response in standard format
-
-        API Request:
-            POST /api/v1/devices/{device_id}/start
-            Headers: Authorization: Bearer {access_token}
-            Body: {"temperature_celsius": 65.0, "time_minutes": 90}
-
-        Reference: CLAUDE.md Section "API Endpoints Reference > POST /start-cook"
-        Reference: docs/03-component-architecture.md Section 4.3
+        Reference: COMP-ANOVA-01 (docs/03-component-architecture.md Section 4.3.1)
         """
-        raise NotImplementedError("start_cook not yet implemented - see CLAUDE.md lines 1127-1137")
+        # Check if device is already cooking
+        try:
+            status = self.get_status()
+            if status['is_running']:
+                raise DeviceBusyError("Device is already cooking. Stop current cook first.")
+        except DeviceOfflineError:
+            raise
 
-    def get_status(self, device_id: str) -> Dict[str, Any]:
-        """
-        Get current cooking status.
+        # Start cook command
+        endpoint = f"/devices/{self.config.DEVICE_ID}/cook"
+        payload = {
+            "temperature": temperature_c,
+            "timer": time_minutes * 60  # Convert to seconds
+        }
 
-        Args:
-            device_id: Anova device ID
+        data = self._api_request('POST', endpoint, json=payload)
 
-        Returns:
-            Dict with current status:
-                {
-                    "device_online": true,
-                    "state": "cooking",  # idle, preheating, cooking, done
-                    "current_temp_celsius": 64.8,
-                    "target_temp_celsius": 65.0,
-                    "time_remaining_minutes": 47,
-                    "time_elapsed_minutes": 43,
-                    "is_running": true
-                }
+        # Generate cook_id if not provided
+        cook_id = data.get('cookId', f"cook_{int(datetime.now().timestamp())}")
 
-        Raises:
-            DeviceOfflineError: If device is offline
-            AnovaAPIError: For other API errors
+        # Calculate estimated completion
+        estimated_completion = datetime.now() + timedelta(minutes=time_minutes)
 
-        TODO: Implement get status
-        TODO: Check token validity with _ensure_valid_token()
-        TODO: GET from {ANOVA_BASE_URL}/devices/{device_id}/status
-        TODO: Include access token in Authorization header
-        TODO: Parse response and return in standard format
-        TODO: Handle errors (offline, API errors)
+        return {
+            'success': True,
+            'message': 'Cook started successfully',
+            'cook_id': cook_id,
+            'device_state': 'preheating',
+            'target_temp_celsius': temperature_c,
+            'time_minutes': time_minutes,
+            'estimated_completion': estimated_completion.isoformat()
+        }
 
-        API Request:
-            GET /api/v1/devices/{device_id}/status
-            Headers: Authorization: Bearer {access_token}
-
-        Reference: CLAUDE.md Section "API Endpoints Reference > GET /status"
-        """
-        raise NotImplementedError("get_status not yet implemented")
-
-    def stop_cook(self, device_id: str) -> Dict[str, Any]:
+    def stop_cook(self) -> Dict[str, Any]:
         """
         Stop the current cooking session.
 
-        Args:
-            device_id: Anova device ID
-
         Returns:
             Dict with stop confirmation:
-                {"status": "stopped", "final_temp_celsius": 64.9, "total_time_minutes": 85}
+                {
+                    "success": bool,
+                    "message": str,
+                    "device_state": str
+                }
 
         Raises:
             DeviceOfflineError: If device is offline
             NoActiveCookError: If no cook is active
             AnovaAPIError: For other API errors
 
-        TODO: Implement stop cook
-        TODO: Check token validity with _ensure_valid_token()
-        TODO: Check if cook is active (raise NoActiveCookError if not)
-        TODO: POST to {ANOVA_BASE_URL}/devices/{device_id}/stop
-        TODO: Include access token in Authorization header
-        TODO: Return success response in standard format
-
-        API Request:
-            POST /api/v1/devices/{device_id}/stop
-            Headers: Authorization: Bearer {access_token}
-
-        Reference: CLAUDE.md Section "API Endpoints Reference > POST /stop-cook"
+        Reference: COMP-ANOVA-01 (docs/03-component-architecture.md Section 4.3.1)
         """
-        raise NotImplementedError("stop_cook not yet implemented")
+        # Check if there's an active cook
+        try:
+            status = self.get_status()
+            if not status['is_running']:
+                raise NoActiveCookError("No active cook to stop")
+        except DeviceOfflineError:
+            raise
+
+        # Stop cook command
+        endpoint = f"/devices/{self.config.DEVICE_ID}/stop"
+        self._api_request('POST', endpoint)
+
+        return {
+            'success': True,
+            'message': 'Cook stopped successfully',
+            'device_state': 'idle'
+        }
 
 
 # ==============================================================================
@@ -278,7 +453,7 @@ class AnovaClient:
 # ==============================================================================
 # CRITICAL - Token handling security:
 # ✅ Store tokens in memory only (never log or persist to disk)
-# ✅ Refresh tokens before they expire (proactive refresh)
+# ✅ Refresh tokens before they expire (proactive refresh with 5-min buffer)
 # ✅ Use HTTPS for all API calls
 #
 # ❌ NEVER log access tokens or refresh tokens
