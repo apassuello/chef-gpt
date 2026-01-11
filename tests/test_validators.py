@@ -112,11 +112,10 @@ def test_poultry_temp_unsafe():
 
 def test_poultry_temp_safe():
     """TC-VAL-11: Chicken at 57°C should pass (poultry minimum)."""
-    # TODO: Implement test
-    # data = {"temperature_celsius": 57.0, "time_minutes": 90, "food_type": "chicken"}
-    # result = validate_start_cook(data)
-    # assert result["temperature_celsius"] == 57.0
-    pass
+    data = {"temperature_celsius": 57.0, "time_minutes": 90, "food_type": "chicken"}
+    result = validate_start_cook(data)
+    assert result["temperature_celsius"] == 57.0
+    assert result["food_type"] == "chicken"
 
 
 def test_ground_meat_temp_unsafe():
