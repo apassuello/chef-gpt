@@ -68,3 +68,4 @@ secrets.json
 # Cloudflare Tunnel
 cloudflared.yml
 tunnel.json
+.claude/memories/
