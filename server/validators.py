@@ -168,7 +168,15 @@ def validate_start_cook(data: Dict[str, Any]) -> Dict[str, Any]:
             f"Time {time} minutes exceeds the device maximum of {MAX_TIME_MINUTES} minutes."
         )
 
-    # TODO: Add food safety validation
+    # 5. Food safety validation (context-specific)
+    if food_type:
+        if _is_poultry(food_type) and temp < POULTRY_MIN_TEMP:
+            raise ValidationError(
+                "POULTRY_TEMP_UNSAFE",
+                f"Temperature {temp}°C is not safe for poultry. "
+                f"Minimum is {POULTRY_MIN_TEMP}°C with extended time (3+ hours) "
+                f"or {POULTRY_SAFE_TEMP}°C for standard cooking."
+            )
 
     # Return validated data
     return {

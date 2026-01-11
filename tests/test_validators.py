@@ -104,12 +104,10 @@ def test_time_above_maximum():
 
 def test_poultry_temp_unsafe():
     """TC-VAL-10: Chicken at 56°C should fail (below poultry minimum)."""
-    # TODO: Implement test
-    # data = {"temperature_celsius": 56.0, "time_minutes": 90, "food_type": "chicken"}
-    # with pytest.raises(ValidationError) as exc_info:
-    #     validate_start_cook(data)
-    # assert exc_info.value.error_code == "POULTRY_TEMP_UNSAFE"
-    pass
+    data = {"temperature_celsius": 56.0, "time_minutes": 90, "food_type": "chicken"}
+    with pytest.raises(ValidationError) as exc_info:
+        validate_start_cook(data)
+    assert exc_info.value.error_code == "POULTRY_TEMP_UNSAFE"
 
 
 def test_poultry_temp_safe():
