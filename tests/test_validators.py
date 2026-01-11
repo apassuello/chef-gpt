@@ -128,11 +128,10 @@ def test_ground_meat_temp_unsafe():
 
 def test_ground_meat_temp_safe():
     """TC-VAL-13: Ground beef at 60°C should pass (ground meat minimum)."""
-    # TODO: Implement test
-    # data = {"temperature_celsius": 60.0, "time_minutes": 90, "food_type": "ground beef"}
-    # result = validate_start_cook(data)
-    # assert result["temperature_celsius"] == 60.0
-    pass
+    data = {"temperature_celsius": 60.0, "time_minutes": 90, "food_type": "ground beef"}
+    result = validate_start_cook(data)
+    assert result["temperature_celsius"] == 60.0
+    assert result["food_type"] == "ground beef"
 
 
 # ==============================================================================
