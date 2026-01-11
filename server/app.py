@@ -12,7 +12,7 @@ import logging
 from typing import Optional, Dict, Any
 from flask import Flask, jsonify
 
-from .config import load_config
+from .config import Config
 from .routes import api
 from .middleware import (
     setup_request_logging,
@@ -30,7 +30,7 @@ from .exceptions import (
 logger = logging.getLogger(__name__)
 
 
-def create_app(config: Optional[Dict[str, Any]] = None) -> Flask:
+def create_app(config: Optional[Config] = None) -> Flask:
     """
     Application factory for creating Flask app instances.
 
@@ -40,8 +40,8 @@ def create_app(config: Optional[Dict[str, Any]] = None) -> Flask:
     - Easier testing with isolated app instances
 
     Args:
-        config: Optional configuration dictionary. If not provided,
-                loads from environment using config.load_config()
+        config: Optional Config object. If not provided,
+                loads from environment using Config.load()
 
     Returns:
         Configured Flask application instance
@@ -49,39 +49,46 @@ def create_app(config: Optional[Dict[str, Any]] = None) -> Flask:
     Raises:
         RuntimeError: If required configuration is missing
 
-    TODO: Implement from CLAUDE.md Section "Code Patterns > 1. Error Handling Pattern"
-    TODO: Create Flask app instance
-    TODO: Load configuration (from argument or environment)
-    TODO: Configure logging
-    TODO: Register routes blueprint (api from routes.py)
-    TODO: Register middleware (setup_request_logging)
-    TODO: Register error handlers (register_error_handlers)
-    TODO: Add health check logging
-    TODO: Return configured app
-
-    Implementation steps:
-    1. Create Flask(__name__)
-    2. Load config with load_config() if not provided
-    3. Store config in app.config
-    4. Configure logging (level, format)
-    5. Register blueprint: app.register_blueprint(api)
-    6. Setup request logging: setup_request_logging(app)
-    7. Register error handlers: register_error_handlers(app)
-    8. Log startup message
-    9. Return app
-
     Example usage:
         # Production
         app = create_app()
         app.run()
 
         # Testing with custom config
-        test_config = {"DEBUG": True, "TESTING": True}
+        test_config = Config(ANOVA_EMAIL="test@example.com", ...)
         app = create_app(config=test_config)
 
     Reference: CLAUDE.md Section "Component Responsibilities > app.py" (lines 150-158)
     """
-    raise NotImplementedError("create_app not yet implemented")
+    # 1. Create Flask app instance
+    app = Flask(__name__)
+
+    # 2. Load configuration
+    if config is None:
+        config = Config.load()
+
+    # 3. Store config in app.config for access by routes
+    app.config['ANOVA_CONFIG'] = config
+    app.config['API_KEY'] = config.API_KEY
+    app.config['DEBUG'] = config.DEBUG
+
+    # 4. Configure logging
+    configure_logging(app)
+
+    # 5. Register routes blueprint
+    app.register_blueprint(api)
+
+    # 6. Setup request logging middleware
+    setup_request_logging(app)
+
+    # 7. Register error handlers
+    register_error_handlers(app)
+
+    # 8. Log startup message
+    logger.info("Anova Sous Vide Assistant API initialized")
+    logger.info(f"Debug mode: {config.DEBUG}")
+
+    return app
 
 
 def configure_logging(app: Flask) -> None:
@@ -93,43 +100,40 @@ def configure_logging(app: Flask) -> None:
     Args:
         app: Flask application instance
 
-    TODO: Implement logging configuration
-    TODO: Set logging level based on DEBUG config
-    TODO: Configure log format (timestamp, level, message)
-    TODO: Add file handler for production (optional)
-    TODO: NEVER log sensitive data (see middleware.py security notes)
-
     Log format example:
         2025-01-09 12:34:56,789 - INFO - Request: GET /health from 192.168.1.100
 
     Reference: CLAUDE.md Section "Code Patterns > 4. Logging Pattern" (lines 439-515)
     """
-    raise NotImplementedError("configure_logging not yet implemented")
+    # Set logging level based on DEBUG config
+    log_level = logging.DEBUG if app.config.get('DEBUG') else logging.INFO
+
+    # Configure log format
+    logging.basicConfig(
+        level=log_level,
+        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+        datefmt='%Y-%m-%d %H:%M:%S'
+    )
+
+    # Set Flask app logger to same level
+    app.logger.setLevel(log_level)
 
 
 def init_app_context(app: Flask, config: Dict[str, Any]) -> None:
     """
     Initialize application context with configuration.
 
+    NOTE: This function is not currently used. Configuration initialization
+    is handled directly in create_app() for simplicity.
+
     Stores configuration values needed by routes and middleware.
 
     Args:
         app: Flask application instance
         config: Configuration dictionary
-
-    TODO: Implement context initialization
-    TODO: Store config in app.config
-    TODO: Validate required config keys present
-    TODO: Log configuration loading (without exposing secrets!)
-
-    Required config keys:
-    - anova_email
-    - anova_password
-    - device_id
-    - api_key
-    - debug (optional, default: False)
     """
-    raise NotImplementedError("init_app_context not yet implemented")
+    # Not implemented - config initialization happens in create_app()
+    pass
 
 
 # ==============================================================================
@@ -146,14 +150,29 @@ if __name__ == '__main__':
     For production, use gunicorn:
         gunicorn "server.app:create_app()"
 
-    TODO: Implement development server entry point
-    TODO: Create app with create_app()
-    TODO: Run with app.run(host='0.0.0.0', port=5000, debug=True)
-    TODO: Add warning about not using in production
-
     Reference: CLAUDE.md Section "Quick Start Commands > Development Server" (lines 55-68)
     """
-    raise NotImplementedError("Development server entry point not yet implemented")
+    print("=" * 70)
+    print("ANOVA SOUS VIDE ASSISTANT - DEVELOPMENT SERVER")
+    print("=" * 70)
+    print("WARNING: This is a development server. Do not use in production.")
+    print("For production, use: gunicorn 'server.app:create_app()'")
+    print("=" * 70)
+    print()
+
+    # Create and run the app
+    app = create_app()
+    config = app.config['ANOVA_CONFIG']
+
+    print(f"Starting server on {config.HOST}:{config.PORT}")
+    print(f"Health check: http://{config.HOST}:{config.PORT}/health")
+    print()
+
+    app.run(
+        host=config.HOST,
+        port=config.PORT,
+        debug=config.DEBUG
+    )
 
 
 # ==============================================================================

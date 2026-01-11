@@ -15,12 +15,13 @@ Reference: docs/05-api-specification.md
 """
 
 import logging
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, current_app
 from typing import Dict, Any, Tuple
 
 from .middleware import require_api_key
-from .validators import validate_start_cook, validate_device_id
+from .validators import validate_start_cook
 from .anova_client import AnovaClient
+from .config import Config
 from .exceptions import ValidationError, AnovaAPIError
 
 logger = logging.getLogger(__name__)
@@ -49,13 +50,9 @@ def health() -> Tuple[Dict[str, str], int]:
         GET /health
         Response: {"status": "ok"}
 
-    TODO: Implement simple health check
-    TODO: Return {"status": "ok"} with 200 status code
-    TODO: Optional: Add additional health metrics (database connection, etc.)
-
     Reference: CLAUDE.md Section "API Endpoints Reference > GET /health" (lines 1028-1039)
     """
-    raise NotImplementedError("health endpoint not yet implemented")
+    return jsonify({"status": "ok"}), 200
 
 
 # ==============================================================================
@@ -93,14 +90,6 @@ def start_cook() -> Tuple[Dict[str, Any], int]:
     - 409: Device already cooking (DEVICE_BUSY)
     - 503: Device offline (DEVICE_OFFLINE)
 
-    TODO: Implement from CLAUDE.md lines 418-434
-    TODO: Get JSON data from request.json
-    TODO: Validate input using validate_start_cook(request.json)
-    TODO: Create AnovaClient instance
-    TODO: Call client.start_cook(**validated) with validated parameters
-    TODO: Return success response in standard format
-    TODO: Let exceptions propagate to error handlers (don't catch them here)
-
     Flow:
     1. Extract JSON from request
     2. Validate with validators.validate_start_cook()
@@ -111,7 +100,21 @@ def start_cook() -> Tuple[Dict[str, Any], int]:
     Reference: CLAUDE.md Section "API Endpoints Reference > POST /start-cook" (lines 948-978)
     Reference: CLAUDE.md Section "Code Patterns > 3. Authentication Pattern" (lines 401-434)
     """
-    raise NotImplementedError("start_cook endpoint not yet implemented - see CLAUDE.md lines 418-434")
+    # Validate input (raises ValidationError if invalid)
+    validated = validate_start_cook(request.json or {})
+
+    # Get configuration from app context
+    config: Config = current_app.config['ANOVA_CONFIG']
+
+    # Create Anova client and start cook
+    client = AnovaClient(config)
+    result = client.start_cook(
+        temperature_c=validated['temperature_celsius'],
+        time_minutes=validated['time_minutes']
+    )
+
+    # Return success response
+    return jsonify(result), 200
 
 
 @api.route('/status', methods=['GET'])
@@ -138,16 +141,17 @@ def get_status() -> Tuple[Dict[str, Any], int]:
     - 401: Missing or invalid API key
     - 503: Device offline (DEVICE_OFFLINE)
 
-    TODO: Implement status endpoint
-    TODO: Create AnovaClient instance
-    TODO: Get device_id from config or request
-    TODO: Call client.get_status(device_id)
-    TODO: Return status response in standard format
-    TODO: Handle DeviceOfflineError (503)
-
     Reference: CLAUDE.md Section "API Endpoints Reference > GET /status" (lines 980-1002)
     """
-    raise NotImplementedError("get_status endpoint not yet implemented")
+    # Get configuration from app context
+    config: Config = current_app.config['ANOVA_CONFIG']
+
+    # Create Anova client and get status
+    client = AnovaClient(config)
+    status = client.get_status()
+
+    # Return status response
+    return jsonify(status), 200
 
 
 @api.route('/stop-cook', methods=['POST'])
@@ -171,16 +175,17 @@ def stop_cook() -> Tuple[Dict[str, Any], int]:
     - 404: No active cook (NO_ACTIVE_COOK)
     - 503: Device offline (DEVICE_OFFLINE)
 
-    TODO: Implement stop endpoint
-    TODO: Create AnovaClient instance
-    TODO: Get device_id from config or request
-    TODO: Call client.stop_cook(device_id)
-    TODO: Return success response in standard format
-    TODO: Handle NoActiveCookError (404)
-
     Reference: CLAUDE.md Section "API Endpoints Reference > POST /stop-cook" (lines 1004-1026)
     """
-    raise NotImplementedError("stop_cook endpoint not yet implemented")
+    # Get configuration from app context
+    config: Config = current_app.config['ANOVA_CONFIG']
+
+    # Create Anova client and stop cook
+    client = AnovaClient(config)
+    result = client.stop_cook()
+
+    # Return success response
+    return jsonify(result), 200
 
 
 # ==============================================================================
