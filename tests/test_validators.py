@@ -140,12 +140,10 @@ def test_ground_meat_temp_safe():
 
 def test_float_time_truncation():
     """TC-VAL-14: Float time should be truncated to integer."""
-    # TODO: Implement test
-    # data = {"temperature_celsius": 65.0, "time_minutes": 90.7}
-    # result = validate_start_cook(data)
-    # assert result["time_minutes"] == 90
-    # assert isinstance(result["time_minutes"], int)
-    pass
+    data = {"temperature_celsius": 65.0, "time_minutes": 90.7}
+    result = validate_start_cook(data)
+    assert result["time_minutes"] == 90
+    assert isinstance(result["time_minutes"], int)
 
 
 # ==============================================================================
