@@ -75,8 +75,43 @@ def require_api_key(f: Callable) -> Callable:
     """
     @wraps(f)
     def decorated_function(*args: Any, **kwargs: Any) -> Any:
-        # TODO: Implement authentication logic here
-        raise NotImplementedError("require_api_key not yet implemented - see CLAUDE.md lines 360-399")
+        # Get Authorization header
+        auth_header = request.headers.get('Authorization')
+
+        if not auth_header:
+            return jsonify({
+                "error": "UNAUTHORIZED",
+                "message": "Missing Authorization header"
+            }), 401
+
+        # Extract token from "Bearer <token>"
+        parts = auth_header.split()
+        if len(parts) != 2 or parts[0].lower() != 'bearer':
+            return jsonify({
+                "error": "UNAUTHORIZED",
+                "message": "Invalid Authorization header format. Expected: Bearer <token>"
+            }), 401
+
+        provided_key = parts[1]
+
+        # Get API key from Flask config (preferred) or environment
+        from flask import current_app
+        expected_key = current_app.config.get('API_KEY') or os.getenv('API_KEY')
+
+        # If no API key configured, allow request (dev mode)
+        if not expected_key:
+            logger.warning("API_KEY not configured - allowing unauthenticated access")
+            return f(*args, **kwargs)
+
+        # Constant-time comparison (prevents timing attacks)
+        if not hmac.compare_digest(provided_key, expected_key):
+            return jsonify({
+                "error": "UNAUTHORIZED",
+                "message": "Invalid API key"
+            }), 401
+
+        # Authentication successful
+        return f(*args, **kwargs)
 
     return decorated_function
 
@@ -101,12 +136,6 @@ def setup_request_logging(app: Flask) -> None:
     Args:
         app: Flask application instance
 
-    TODO: Implement from CLAUDE.md lines 490-515
-    TODO: Register @app.before_request handler to log incoming requests
-    TODO: Store start time in flask.g for duration calculation
-    TODO: Register @app.after_request handler to log responses with duration
-    TODO: NEVER log headers, body, or sensitive data
-
     Example log output:
         INFO: POST /start-cook from 192.168.1.100
         INFO: POST /start-cook → 200 (0.234s)
@@ -117,26 +146,51 @@ def setup_request_logging(app: Flask) -> None:
     - Do NOT log response body (may contain tokens)
     - Only log: method, path, remote_addr, status_code, duration
     """
-    raise NotImplementedError("setup_request_logging not yet implemented - see CLAUDE.md lines 490-515")
+    @app.before_request
+    def before_request():
+        """Log incoming request and record start time."""
+        g.start_time = time.time()
+        # Log request safely (no sensitive data)
+        logger.info(
+            f"{request.method} {request.path} "
+            f"from {request.remote_addr}"
+        )
+
+    @app.after_request
+    def after_request(response):
+        """Log response with duration."""
+        # Calculate request duration
+        duration = time.time() - g.start_time
+
+        # Log response safely (no sensitive data)
+        logger.info(
+            f"{request.method} {request.path} "
+            f"→ {response.status_code} "
+            f"({duration:.3f}s)"
+        )
+
+        return response
 
 
 def log_request_safely() -> None:
     """
+    DEPRECATED: Logging now handled by setup_request_logging().
+
     Log request without sensitive data.
 
     Logs only: method, path, remote address
     NEVER logs: headers, body, query parameters (may contain secrets)
-
-    TODO: Implement from CLAUDE.md lines 467-475
-    TODO: Log request.method, request.path, request.remote_addr
-    TODO: DO NOT log request.headers (contains Authorization)
-    TODO: DO NOT log request.json (may contain credentials)
     """
-    raise NotImplementedError("log_request_safely not yet implemented")
+    logger.info(
+        f"{request.method} {request.path} "
+        f"from {request.remote_addr}"
+    )
 
 
 def log_response_safely(status_code: int) -> None:
     """
+    DEPRECATED: Logging now handled by setup_request_logging().
+
     Log response without sensitive data.
 
     Logs only: status code
@@ -144,12 +198,8 @@ def log_response_safely(status_code: int) -> None:
 
     Args:
         status_code: HTTP status code of the response
-
-    TODO: Implement from CLAUDE.md lines 477-480
-    TODO: Log only the status code
-    TODO: DO NOT log response body (may contain tokens)
     """
-    raise NotImplementedError("log_response_safely not yet implemented")
+    logger.info(f"Response: {status_code}")
 
 
 # ==============================================================================
@@ -243,6 +293,30 @@ def register_error_handlers(app: Flask) -> None:
             "error": "ANOVA_API_ERROR",
             "message": error.message
         }), error.status_code
+
+
+# ==============================================================================
+# MIDDLEWARE REGISTRATION
+# ==============================================================================
+
+def register_middleware(app: Flask) -> None:
+    """
+    Register all middleware with Flask application.
+
+    Registers:
+    - Request/response logging (setup_request_logging)
+    - Error handlers (register_error_handlers)
+
+    Note: Authentication (@require_api_key) is applied per-route as decorator.
+
+    Args:
+        app: Flask application instance
+
+    Specification: COMP-MW-01 (docs/03-component-architecture.md Section 4.1.3)
+    """
+    setup_request_logging(app)
+    register_error_handlers(app)
+    logger.info("Middleware registered: logging + error handlers")
 
 
 # ==============================================================================
