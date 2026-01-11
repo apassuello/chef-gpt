@@ -178,6 +178,13 @@ def validate_start_cook(data: Dict[str, Any]) -> Dict[str, Any]:
                 f"or {POULTRY_SAFE_TEMP}°C for standard cooking."
             )
 
+        if _is_ground_meat(food_type) and temp < GROUND_MEAT_MIN_TEMP:
+            raise ValidationError(
+                "GROUND_MEAT_TEMP_UNSAFE",
+                f"Temperature {temp}°C is not safe for ground meat. "
+                f"Minimum is {GROUND_MEAT_MIN_TEMP}°C because bacteria are mixed throughout."
+            )
+
     # Return validated data
     return {
         "temperature_celsius": round(temp, 1),

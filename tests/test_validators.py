@@ -120,12 +120,10 @@ def test_poultry_temp_safe():
 
 def test_ground_meat_temp_unsafe():
     """TC-VAL-12: Ground beef at 59°C should fail (below ground meat minimum)."""
-    # TODO: Implement test
-    # data = {"temperature_celsius": 59.0, "time_minutes": 90, "food_type": "ground beef"}
-    # with pytest.raises(ValidationError) as exc_info:
-    #     validate_start_cook(data)
-    # assert exc_info.value.error_code == "GROUND_MEAT_TEMP_UNSAFE"
-    pass
+    data = {"temperature_celsius": 59.0, "time_minutes": 90, "food_type": "ground beef"}
+    with pytest.raises(ValidationError) as exc_info:
+        validate_start_cook(data)
+    assert exc_info.value.error_code == "GROUND_MEAT_TEMP_UNSAFE"
 
 
 def test_ground_meat_temp_safe():
