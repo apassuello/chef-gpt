@@ -57,12 +57,12 @@ def health() -> Tuple[Dict[str, Any], int]:
     Reference: CLAUDE.md Section "API Endpoints Reference > GET /health" (lines 1028-1039)
     Reference: docs/05-api-specification.md lines 278-302
     """
-    from datetime import datetime
+    from datetime import datetime, timezone
 
     return jsonify({
         "status": "ok",
         "version": "1.0.0",
-        "timestamp": datetime.utcnow().isoformat() + "Z"
+        "timestamp": datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z')
     }), 200
 
 

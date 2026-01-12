@@ -153,7 +153,7 @@ class NoActiveCookError(AnovaAPIError):
     No active cooking session to stop.
 
     Raised when attempting to stop a cook when no cook is running.
-    Maps to HTTP 404 Not Found.
+    Maps to HTTP 409 Conflict (device state violation, not resource not found).
     """
 
     def __init__(self, message: str = "No active cooking session"):
@@ -163,4 +163,4 @@ class NoActiveCookError(AnovaAPIError):
         Args:
             message: Human-readable error message
         """
-        super().__init__(message, status_code=404)
+        super().__init__(message, status_code=409)

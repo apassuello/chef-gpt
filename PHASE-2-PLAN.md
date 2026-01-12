@@ -126,16 +126,24 @@ def test_int_01_complete_cook_cycle_success(
     start_data = start_response.get_json()
 
     # Validate response schema (all required fields present)
-    assert "success" in start_data, "Response missing 'success' field"
-    assert "target_temp_celsius" in start_data, "Response missing 'target_temp_celsius'"
-    assert "time_minutes" in start_data, "Response missing 'time_minutes'"
-    assert "device_id" in start_data, "Response missing 'device_id'"
+    required_fields = [
+        "success", "message", "cook_id", "device_state",
+        "target_temp_celsius", "time_minutes", "estimated_completion"
+    ]
+    for field in required_fields:
+        assert field in start_data, f"Response missing required field: {field}"
 
     # Validate response values match request
     assert start_data["success"] is True
     assert start_data["target_temp_celsius"] == 65.0
     assert start_data["time_minutes"] == 90
-    assert start_data["device_id"] == "test-device-123"
+    assert start_data["device_state"] == "preheating"
+
+    # Validate field types and formats
+    assert isinstance(start_data["cook_id"], str)
+    assert len(start_data["cook_id"]) == 36  # UUID format
+    assert "T" in start_data["estimated_completion"]  # ISO 8601
+    assert start_data["estimated_completion"].endswith("Z")  # UTC
 
     # ACT 2: Check status
     status_response = client.get('/status', headers=auth_headers)

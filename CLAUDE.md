@@ -7,6 +7,7 @@ This system is an AI-powered sous vide cooking assistant that bridges ChatGPT (v
 **Architecture Pattern:** API Gateway / Bridge  
 **Deployment:** Self-hosted on Raspberry Pi Zero 2 W  
 **Key Constraint:** Food safety is paramount - all temperature/time validation happens server-side, not just in the GPT.
+**Plan** :   The plan is saved at: /Users/apa/.claude/plans/valiant-rolling-cloud.md
 
 ---
 
