@@ -41,7 +41,7 @@ TEST_CONFIG = {
 # ==============================================================================
 
 @pytest.fixture
-def app():
+def app(monkeypatch):
     """
     Create Flask application configured for testing.
 
@@ -50,6 +50,9 @@ def app():
 
     Reference: Spec Section 2.2 (lines 104-133)
     """
+    # Set FIREBASE_API_KEY environment variable for Anova client
+    monkeypatch.setenv("FIREBASE_API_KEY", "test-firebase-api-key-12345")
+
     # Create test configuration (only Config fields)
     config = Config(**TEST_CONFIG)
 
@@ -271,16 +274,32 @@ def mock_anova_api_success():
         status=200
     )
 
-    # Mock device status (idle)
+    # Mock device status (idle) - first call before start cook
     responses.add(
         responses.GET,
-        "https://anovaculinary.io/api/v1/devices/test-device-123/status",
+        "https://anovaculinary.io/api/v1/devices/test-device-123",
         json={
             "online": True,
-            "state": "idle",
-            "current_temperature": 22.5,
-            "target_temperature": None,
-            "timer_remaining": None
+            "cookerState": "IDLE",
+            "currentTemperature": 22.5,
+            "targetTemperature": None,
+            "cookTimeRemaining": None,
+            "cookTimeElapsed": None
+        },
+        status=200
+    )
+
+    # Mock device status (preheating) - subsequent calls after start cook
+    responses.add(
+        responses.GET,
+        "https://anovaculinary.io/api/v1/devices/test-device-123",
+        json={
+            "online": True,
+            "cookerState": "PREHEATING",
+            "currentTemperature": 45.0,
+            "targetTemperature": 65.0,
+            "cookTimeRemaining": 5400,  # 90 minutes in seconds
+            "cookTimeElapsed": 0
         },
         status=200
     )
@@ -288,9 +307,10 @@ def mock_anova_api_success():
     # Mock start cook command
     responses.add(
         responses.POST,
-        "https://anovaculinary.io/api/v1/devices/test-device-123/start",
+        "https://anovaculinary.io/api/v1/devices/test-device-123/cook",
         json={
             "success": True,
+            "cookId": "550e8400-e29b-41d4-a716-446655440000",  # UUID format
             "state": "preheating"
         },
         status=200

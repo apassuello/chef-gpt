@@ -407,7 +407,7 @@ class AnovaClient:
             'device_state': 'preheating',
             'target_temp_celsius': temperature_c,
             'time_minutes': time_minutes,
-            'estimated_completion': estimated_completion.isoformat()
+            'estimated_completion': estimated_completion.isoformat() + 'Z'
         }
 
     def stop_cook(self) -> Dict[str, Any]:
