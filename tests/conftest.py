@@ -364,7 +364,7 @@ def mock_anova_api_offline():
     # Mock device offline (404 or online=false)
     responses.add(
         responses.GET,
-        "https://anovaculinary.io/api/v1/devices/test-device-123/status",
+        "https://anovaculinary.io/api/v1/devices/test-device-123",
         json={
             "error": "Device not found or offline"
         },
@@ -409,13 +409,13 @@ def mock_anova_api_busy():
     # Mock device status (already cooking)
     responses.add(
         responses.GET,
-        "https://anovaculinary.io/api/v1/devices/test-device-123/status",
+        "https://anovaculinary.io/api/v1/devices/test-device-123",
         json={
             "online": True,
-            "state": "cooking",
-            "current_temperature": 65.0,
-            "target_temperature": 65.0,
-            "timer_remaining": 45
+            "cookerState": "COOKING",
+            "currentTemperature": 65.0,
+            "targetTemperature": 65.0,
+            "cookTimeRemaining": 2700
         },
         status=200
     )
