@@ -2,8 +2,11 @@
 # Web framework
 flask==3.0.*
 
-# HTTP client for Anova Cloud API
+# HTTP client for Anova Cloud API (legacy, will be removed post-migration)
 requests==2.31.*
+
+# WebSocket client for Anova official API
+websockets==12.0
 
 # Environment variable management (development)
 python-dotenv==1.0.*

@@ -5,16 +5,15 @@ Development: Loads from environment variables (.env file, gitignored)
 Production: Loads from encrypted JSON file (for Raspberry Pi persistence)
 
 Required environment variables:
-- ANOVA_EMAIL: Anova account email
-- ANOVA_PASSWORD: Anova account password
-- DEVICE_ID: Anova device ID
+- PERSONAL_ACCESS_TOKEN: Personal Access Token from Anova mobile app (starts with "anova-")
+- API_KEY: Bearer token for ChatGPT authentication
 
 Optional environment variables:
-- API_KEY: Bearer token for ChatGPT authentication (None = no auth)
 - DEBUG: Enable debug mode (default: False)
 
 Reference: CLAUDE.md Section "Configuration Management"
 Reference: docs/03-component-architecture.md Section 4.4.1 (COMP-CFG-01)
+Reference: WebSocket migration plan Section "Authentication Changes"
 """
 
 import os
@@ -41,13 +40,11 @@ class Config:
     misconfiguration from bypassing food safety rules.
     """
 
-    # Anova credentials (required)
-    ANOVA_EMAIL: str
-    ANOVA_PASSWORD: str
-    DEVICE_ID: str
+    # Anova WebSocket credentials (required)
+    PERSONAL_ACCESS_TOKEN: str
 
-    # Optional API key for ChatGPT auth
-    API_KEY: str | None = None
+    # API key for ChatGPT auth (required)
+    API_KEY: str
 
     # Server settings
     HOST: str = "0.0.0.0"
@@ -66,7 +63,7 @@ class Config:
         Load configuration from available source.
 
         Priority order:
-        1. Environment variables (if ANOVA_EMAIL env var exists)
+        1. Environment variables (if PERSONAL_ACCESS_TOKEN env var exists)
         2. Encrypted file (config/credentials.enc)
         3. Plain JSON file (config/credentials.json)
 
@@ -80,7 +77,7 @@ class Config:
         Specification: COMP-CFG-01 (docs/03-component-architecture.md Section 4.4.1)
         """
         # Try environment first (development/testing)
-        if os.getenv("ANOVA_EMAIL"):
+        if os.getenv("PERSONAL_ACCESS_TOKEN"):
             logger.info("Loading configuration from environment variables")
             return cls._from_env()
 
@@ -98,8 +95,8 @@ class Config:
 
         # No config source found
         raise ValueError(
-            "Configuration not found. Set ANOVA_EMAIL, ANOVA_PASSWORD, "
-            "and DEVICE_ID environment variables, or provide config/credentials.enc"
+            "Configuration not found. Set PERSONAL_ACCESS_TOKEN and API_KEY "
+            "environment variables, or provide config/credentials.enc"
         )
 
     @classmethod
@@ -111,32 +108,31 @@ class Config:
             Config instance
 
         Raises:
-            ValueError: If required environment variables are missing
+            ValueError: If required environment variables are missing or invalid
         """
-        email = os.environ.get("ANOVA_EMAIL")
-        password = os.environ.get("ANOVA_PASSWORD")
-        device_id = os.environ.get("DEVICE_ID")
+        pat = os.environ.get("PERSONAL_ACCESS_TOKEN")
+        api_key = os.environ.get("API_KEY")
 
         # Validate required fields
-        if not all([email, password, device_id]):
-            missing = []
-            if not email:
-                missing.append("ANOVA_EMAIL")
-            if not password:
-                missing.append("ANOVA_PASSWORD")
-            if not device_id:
-                missing.append("DEVICE_ID")
+        if not pat:
+            raise ValueError("Missing required environment variable: PERSONAL_ACCESS_TOKEN")
 
-            raise ValueError(f"Missing required environment variables: {missing}")
+        if not api_key:
+            raise ValueError("Missing required environment variable: API_KEY")
+
+        # Validate PAT format
+        if not pat.startswith("anova-"):
+            raise ValueError(
+                "PERSONAL_ACCESS_TOKEN must start with 'anova-'. "
+                "Generate token in Anova mobile app: More → Developer → Personal Access Tokens"
+            )
 
         # Parse DEBUG env var
         debug = os.environ.get("DEBUG", "").lower() == "true"
 
         return cls(
-            ANOVA_EMAIL=email,
-            ANOVA_PASSWORD=password,
-            DEVICE_ID=device_id,
-            API_KEY=os.environ.get("API_KEY"),
+            PERSONAL_ACCESS_TOKEN=pat,
+            API_KEY=api_key,
             DEBUG=debug
         )
 
@@ -161,16 +157,23 @@ class Config:
             data = json.load(f)
 
         # Validate required fields
-        required = ["anova_email", "anova_password", "device_id"]
+        required = ["personal_access_token", "api_key"]
         missing = [field for field in required if field not in data]
         if missing:
             raise ValueError(f"JSON config missing required fields: {missing}")
 
+        pat = data["personal_access_token"]
+
+        # Validate PAT format
+        if not pat.startswith("anova-"):
+            raise ValueError(
+                "personal_access_token must start with 'anova-'. "
+                "Generate token in Anova mobile app: More → Developer → Personal Access Tokens"
+            )
+
         return cls(
-            ANOVA_EMAIL=data["anova_email"],
-            ANOVA_PASSWORD=data["anova_password"],
-            DEVICE_ID=data["device_id"],
-            API_KEY=data.get("api_key"),
+            PERSONAL_ACCESS_TOKEN=pat,
+            API_KEY=data["api_key"],
             DEBUG=data.get("debug", False)
         )
 
@@ -216,9 +219,7 @@ def load_config():
     """
     config = Config.load()
     return {
-        "anova_email": config.ANOVA_EMAIL,
-        "anova_password": config.ANOVA_PASSWORD,
-        "device_id": config.DEVICE_ID,
+        "personal_access_token": config.PERSONAL_ACCESS_TOKEN,
         "api_key": config.API_KEY,
         "debug": config.DEBUG
     }
@@ -267,10 +268,12 @@ def get_encryption_key():
 # ✅ .env file must be in .gitignore
 # ✅ Encrypted file permissions must be 0600
 # ✅ Validate all required vars at startup
+# ✅ Validate Personal Access Token format
 # ✅ Log errors without exposing credential values
 #
 # ❌ NEVER commit credentials to git
-# ❌ NEVER log plaintext passwords or API keys
+# ❌ NEVER log Personal Access Token or API keys
 # ❌ NEVER expose credentials in error messages
 #
 # Reference: CLAUDE.md Section "Anti-Patterns > 4. Never Hardcode Credentials"
+# Reference: WebSocket migration plan Section "Authentication Changes"
