@@ -48,6 +48,7 @@ credentials.encrypted
 # Testing
 .pytest_cache/
 .coverage
+coverage.json
 htmlcov/
 .tox/
 .hypothesis/
