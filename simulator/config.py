@@ -53,6 +53,12 @@ class Config:
     valid_tokens: List[str] = field(default_factory=lambda: ["valid-test-token"])
     expired_tokens: List[str] = field(default_factory=lambda: ["expired-test-token"])
 
+    # Firebase mock credentials (email -> password mapping)
+    firebase_credentials: dict = field(default_factory=lambda: {
+        "test@example.com": "testpassword123",
+    })
+    token_expiry: int = 3600  # Token expiry in seconds
+
     # Validation
     min_temp_celsius: float = 40.0
     max_temp_celsius: float = 100.0
