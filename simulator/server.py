@@ -71,10 +71,15 @@ class AnovaSimulator:
             ws_port: WebSocket server port
             control_port: Control API port
         """
-        self.config = config or Config.load()
-        self.config.time_scale = time_scale
-        self.config.ws_port = ws_port
-        self.config.control_port = control_port
+        if config is not None:
+            # Use provided config as-is
+            self.config = config
+        else:
+            # Create default config with overrides
+            self.config = Config.load()
+            self.config.time_scale = time_scale
+            self.config.ws_port = ws_port
+            self.config.control_port = control_port
 
         # Initialize state
         self.state = CookerState(
