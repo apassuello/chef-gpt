@@ -6,8 +6,11 @@ Provides HTTP endpoints for test setup and state inspection:
 - POST /set-state - Set specific device state
 - POST /set-offline - Simulate device going offline
 - POST /set-time-scale - Change time acceleration
+- POST /trigger-error - Trigger error conditions
+- POST /clear-error - Clear error conditions
 - GET /state - Get current device state
 - GET /messages - Get message history
+- GET /errors - Get active errors
 
 Reference: docs/SIMULATOR-SPECIFICATION.md Section 9
 """
@@ -21,6 +24,7 @@ from aiohttp import web
 
 from .config import Config
 from .types import DeviceState
+from .errors import ErrorSimulator, ErrorType
 
 if TYPE_CHECKING:
     from .server import AnovaSimulator
@@ -35,16 +39,23 @@ class ControlAPI:
     Provides endpoints for test setup, state manipulation, and inspection.
     """
 
-    def __init__(self, config: Config, simulator: "AnovaSimulator"):
+    def __init__(
+        self,
+        config: Config,
+        simulator: "AnovaSimulator",
+        error_simulator: Optional[ErrorSimulator] = None,
+    ):
         """
         Initialize Control API.
 
         Args:
             config: Simulator configuration
             simulator: Reference to the simulator instance
+            error_simulator: Error simulator (creates new one if None)
         """
         self.config = config
         self.simulator = simulator
+        self.error_simulator = error_simulator or ErrorSimulator(simulator=simulator)
 
         self._app: Optional[web.Application] = None
         self._runner: Optional[web.AppRunner] = None
@@ -87,8 +98,11 @@ class ControlAPI:
         self._app.router.add_post("/set-state", self._handle_set_state)
         self._app.router.add_post("/set-offline", self._handle_set_offline)
         self._app.router.add_post("/set-time-scale", self._handle_set_time_scale)
+        self._app.router.add_post("/trigger-error", self._handle_trigger_error)
+        self._app.router.add_post("/clear-error", self._handle_clear_error)
         self._app.router.add_get("/state", self._handle_get_state)
         self._app.router.add_get("/messages", self._handle_get_messages)
+        self._app.router.add_get("/errors", self._handle_get_errors)
         self._app.router.add_get("/health", self._handle_health)
 
     async def _handle_reset(self, request: web.Request) -> web.Response:
@@ -352,6 +366,144 @@ class ControlAPI:
         except Exception as e:
             logger.error(f"Get messages error: {e}")
             return self._error_response("GET_MESSAGES_FAILED", str(e), 500)
+
+    async def _handle_trigger_error(self, request: web.Request) -> web.Response:
+        """
+        Trigger an error condition.
+
+        POST /trigger-error
+        Body: {
+            "error_type": "device_offline",  // See ErrorType enum
+            "duration": 10.0,  // Optional: auto-clear after seconds
+            "latency_ms": 1000,  // For network_latency
+            "failure_rate": 0.3  // For intermittent_failure
+        }
+
+        Valid error_types:
+        - device_offline: Disconnect all clients
+        - water_level_low: Set water-level-low warning
+        - water_level_critical: Set critical warning, stop cooking
+        - motor_stuck: Set motor stuck error
+        - network_latency: Add delay to responses
+        - intermittent_failure: Random command failures
+        """
+        try:
+            data = await request.json()
+            error_type_str = data.get("error_type")
+
+            if not error_type_str:
+                return self._error_response(
+                    "MISSING_ERROR_TYPE", "error_type is required", 400
+                )
+
+            # Convert to ErrorType enum
+            try:
+                error_type = ErrorType(error_type_str)
+            except ValueError:
+                valid_types = [e.value for e in ErrorType]
+                return self._error_response(
+                    "INVALID_ERROR_TYPE",
+                    f"Invalid error_type. Must be one of: {valid_types}",
+                    400,
+                )
+
+            # Get optional parameters
+            duration = data.get("duration")
+            kwargs = {}
+            if "latency_ms" in data:
+                kwargs["latency_ms"] = int(data["latency_ms"])
+            if "failure_rate" in data:
+                kwargs["failure_rate"] = float(data["failure_rate"])
+
+            # Trigger the error
+            result = await self.error_simulator.trigger_error(
+                error_type, duration=duration, **kwargs
+            )
+
+            return web.json_response({
+                "status": "triggered",
+                **result,
+            })
+
+        except json.JSONDecodeError:
+            return self._error_response("INVALID_JSON", "Invalid JSON body", 400)
+        except Exception as e:
+            logger.error(f"Trigger error failed: {e}")
+            return self._error_response("TRIGGER_ERROR_FAILED", str(e), 500)
+
+    async def _handle_clear_error(self, request: web.Request) -> web.Response:
+        """
+        Clear an error condition.
+
+        POST /clear-error
+        Body: {"error_type": "device_offline"}
+        """
+        try:
+            data = await request.json()
+            error_type_str = data.get("error_type")
+
+            if not error_type_str:
+                return self._error_response(
+                    "MISSING_ERROR_TYPE", "error_type is required", 400
+                )
+
+            # Convert to ErrorType enum
+            try:
+                error_type = ErrorType(error_type_str)
+            except ValueError:
+                valid_types = [e.value for e in ErrorType]
+                return self._error_response(
+                    "INVALID_ERROR_TYPE",
+                    f"Invalid error_type. Must be one of: {valid_types}",
+                    400,
+                )
+
+            # Clear the error
+            result = await self.error_simulator.clear_error(error_type)
+
+            return web.json_response({
+                "status": "cleared",
+                **result,
+            })
+
+        except json.JSONDecodeError:
+            return self._error_response("INVALID_JSON", "Invalid JSON body", 400)
+        except Exception as e:
+            logger.error(f"Clear error failed: {e}")
+            return self._error_response("CLEAR_ERROR_FAILED", str(e), 500)
+
+    async def _handle_get_errors(self, request: web.Request) -> web.Response:
+        """
+        Get active errors.
+
+        GET /errors
+
+        Returns list of active error conditions.
+        """
+        try:
+            active_errors = self.error_simulator.get_active_errors()
+
+            errors_info = []
+            for error_type in active_errors:
+                config = self.error_simulator.get_error_config(error_type)
+                info = {
+                    "error_type": error_type.value,
+                    "duration": config.duration,
+                }
+                if error_type == ErrorType.NETWORK_LATENCY:
+                    info["latency_ms"] = config.latency_ms
+                elif error_type == ErrorType.INTERMITTENT_FAILURE:
+                    info["failure_rate"] = config.failure_rate
+                errors_info.append(info)
+
+            return web.json_response({
+                "active_errors": [e.value for e in active_errors],
+                "errors": errors_info,
+            })
+
+        except Exception as e:
+            logger.error(f"Get errors failed: {e}")
+            return self._error_response("GET_ERRORS_FAILED", str(e), 500)
 
     async def _handle_health(self, request: web.Request) -> web.Response:
         """Health check endpoint."""
