@@ -28,8 +28,8 @@ responses==0.24.*
 pytest-cov==4.*
 
 # Simulator Dependencies
-# WebSocket server
-websockets==12.*
+# WebSocket server (13.0+ required for websockets.asyncio module)
+websockets>=13.0
 
 # Async HTTP server for control API
 aiohttp==3.*
@@ -37,5 +37,5 @@ aiohttp==3.*
 # YAML config file support
 pyyaml==6.*
 
-# Async pytest support
-pytest-asyncio==0.23.*
+# Async pytest support (0.24+ required for asyncio_default_fixture_loop_scope)
+pytest-asyncio>=0.24.0
