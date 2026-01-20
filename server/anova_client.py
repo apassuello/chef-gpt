@@ -209,7 +209,7 @@ class AnovaWebSocketClient:
                     self.connected.set()  # Unblock init to raise error
                     raise AuthenticationError(
                         f"Failed to connect after {max_retries} attempts: {e}"
-                    )
+                    ) from e
 
             except Exception as e:
                 logger.error(f"Unexpected error in WebSocket handler: {e}")
@@ -487,8 +487,9 @@ class AnovaWebSocketClient:
             self.command_queue.put(command)
             logger.info(f"Starting cook: {temperature_c}°C for {time_minutes} minutes")
 
-            # Wait for response (with timeout)
-            response = response_queue.get(timeout=self.COMMAND_TIMEOUT)
+            # Wait for response (with timeout) - we use _ to indicate the response
+            # is intentionally unused since we construct our response from inputs
+            _ = response_queue.get(timeout=self.COMMAND_TIMEOUT)
 
             # Generate cook_id from requestId
             cook_id = command["requestId"]
@@ -508,7 +509,7 @@ class AnovaWebSocketClient:
 
         except queue.Empty:
             logger.error("Start cook command timeout")
-            raise AnovaAPIError("Start cook command timeout", 504)
+            raise AnovaAPIError("Start cook command timeout", 504) from None
         finally:
             # CRITICAL FIX: Clean up pending request queue
             with self.pending_lock:
@@ -568,8 +569,9 @@ class AnovaWebSocketClient:
             self.command_queue.put(command)
             logger.info("Stopping cook")
 
-            # Wait for response (with timeout)
-            response = response_queue.get(timeout=self.COMMAND_TIMEOUT)
+            # Wait for response (with timeout) - we use _ to indicate the response
+            # is intentionally unused since we construct our response from inputs
+            _ = response_queue.get(timeout=self.COMMAND_TIMEOUT)
 
             return {
                 "success": True,
@@ -580,7 +582,7 @@ class AnovaWebSocketClient:
 
         except queue.Empty:
             logger.error("Stop cook command timeout")
-            raise AnovaAPIError("Stop cook command timeout", 504)
+            raise AnovaAPIError("Stop cook command timeout", 504) from None
         finally:
             # CRITICAL FIX: Clean up pending request queue
             with self.pending_lock:

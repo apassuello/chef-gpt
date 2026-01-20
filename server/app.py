@@ -79,7 +79,7 @@ def create_app(config: Config | None = None) -> Flask:
         logger.debug("Registered shutdown handler for WebSocket client")
     except Exception as e:
         logger.error(f"Failed to initialize WebSocket client: {e}")
-        raise RuntimeError(f"Failed to connect to Anova API: {e}")
+        raise RuntimeError(f"Failed to connect to Anova API: {e}") from e
 
     # 6. Register routes blueprint
     app.register_blueprint(api)

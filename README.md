@@ -1,8 +1,13 @@
 # Anova AI Sous Vide Assistant
 
+[![CI](https://github.com/apassuello/chef-gpt/actions/workflows/ci.yml/badge.svg)](https://github.com/apassuello/chef-gpt/actions/workflows/ci.yml)
+[![Ruff](https://img.shields.io/badge/linting-ruff-yellow)](https://github.com/astral-sh/ruff)
+[![ty](https://img.shields.io/badge/type%20checker-ty-blue)](https://github.com/astral-sh/ty)
+[![Coverage](https://img.shields.io/badge/coverage-80%25-green)](https://github.com/apassuello/chef-gpt/actions/workflows/ci.yml)
+
 > Natural language control of Anova Precision Cooker via ChatGPT
 
-**Status:** ✅ Integration Tests Complete (102/102 passing) | 🏗️ Deployment Phase Next
+**Status:** 192 tests passing | 80% coverage | CI enforced
 
 ---
 

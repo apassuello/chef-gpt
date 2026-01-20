@@ -12,7 +12,6 @@ Reference:
 - CLAUDE.md Section "Testing Strategy"
 """
 
-
 import pytest
 from flask.testing import FlaskClient
 

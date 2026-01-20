@@ -9,7 +9,7 @@ help:
 	@echo "  install-dev  - Install all dependencies (production + dev)"
 	@echo "  lint         - Run ruff linter"
 	@echo "  format       - Format code with ruff"
-	@echo "  typecheck    - Run pyright type checker"
+	@echo "  typecheck    - Run ty type checker"
 	@echo "  test         - Run tests"
 	@echo "  coverage     - Run tests with coverage report"
 	@echo "  check        - Run all checks (lint, typecheck, test)"
@@ -40,9 +40,9 @@ format:
 format-check:
 	ruff format --check server/ simulator/ tests/
 
-# Run pyright type checker
+# Run ty type checker (from Astral, same team as ruff)
 typecheck:
-	pyright server/ simulator/
+	ty check server/ simulator/
 
 # Run all tests
 test:

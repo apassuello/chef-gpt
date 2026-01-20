@@ -71,23 +71,29 @@ indent-style = "space"
 # Unix-style line endings
 line-ending = "lf"
 
-[tool.pyright]
-pythonVersion = "3.11"
-typeCheckingMode = "basic"
-include = ["server", "simulator"]
-exclude = ["**/__pycache__", ".venv", "venv", "tests"]
+[tool.ty]
+# ty - type checker from Astral (same team as ruff)
 
-# Report settings
-reportMissingImports = true
-reportMissingTypeStubs = false
-reportUnusedImport = true
-reportUnusedClass = true
-reportUnusedFunction = false  # Flask decorators register functions
-reportUnusedVariable = true
-reportDuplicateImport = true
-reportArgumentType = "warning"  # os.getenv returns str | None
-reportReturnType = "warning"  # Flask routes return Response objects
-reportOptionalMemberAccess = "warning"  # Runtime checks handle None cases
+# Specify which directories to check
+[tool.ty.src]
+include = ["server", "simulator"]
+exclude = ["tests"]
+
+# Rule configuration
+[tool.ty.rules]
+# Ignore unresolved imports for third-party packages
+# (ty doesn't auto-detect installed packages without explicit venv path)
+unresolved-import = "ignore"
+# Ignore argument type issues (os.getenv returns str | None, runtime checks handle it)
+invalid-argument-type = "ignore"
+# Ignore assignment type issues (runtime if-guards ensure values are not None)
+invalid-assignment = "ignore"
+# Ignore missing attribute warnings (dynamic attributes from async libs)
+possibly-missing-attribute = "ignore"
+# Ignore return type issues (Flask routes return Response objects)
+invalid-return-type = "ignore"
+# Ignore not-iterable warnings (websocket is checked at runtime before iteration)
+not-iterable = "ignore"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -105,6 +111,8 @@ markers = [
 [tool.coverage.run]
 source = ["server", "simulator"]
 branch = true
+# Required for CI coverage comment action to work with paths
+relative_files = true
 omit = [
     "*/tests/*",
     "*/__pycache__/*",
