@@ -15,17 +15,17 @@ cryptography==42.*
 gunicorn==21.*
 
 # Development and Testing Dependencies
-# Testing framework
-pytest==7.*
+# Testing framework (8.2+ required for pytest-asyncio>=0.24)
+pytest>=8.2
 
 # Flask-specific test utilities
-pytest-flask==1.*
+pytest-flask>=1.3.0
 
 # HTTP response mocking for Anova API tests
-responses==0.24.*
+responses>=0.24.0
 
 # Code coverage reporting
-pytest-cov==4.*
+pytest-cov>=4.0
 
 # Simulator Dependencies
 # WebSocket server (13.0+ required for websockets.asyncio module)
