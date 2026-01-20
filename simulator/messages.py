@@ -44,8 +44,10 @@ RESPONSE = "RESPONSE"
 # ERROR CODES
 # ==============================================================================
 
+
 class ErrorCode:
     """Error codes returned in RESPONSE messages."""
+
     DEVICE_BUSY = "DEVICE_BUSY"
     NO_ACTIVE_COOK = "NO_ACTIVE_COOK"
     INVALID_TEMPERATURE = "INVALID_TEMPERATURE"
@@ -66,6 +68,7 @@ class ErrorCode:
 # ==============================================================================
 # MESSAGE BUILDERS
 # ==============================================================================
+
 
 def build_response(
     request_id: str,
@@ -142,6 +145,7 @@ def build_event_apc_state(state: CookerState) -> dict[str, Any]:
 # ==============================================================================
 # MESSAGE PARSING
 # ==============================================================================
+
 
 def parse_command(message: dict[str, Any]) -> tuple[str, str, dict[str, Any]]:
     """

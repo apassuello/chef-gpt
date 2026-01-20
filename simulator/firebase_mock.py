@@ -78,9 +78,7 @@ class FirebaseMock:
     def _setup_routes(self):
         """Setup HTTP routes."""
         self._app.router.add_post("/v1/token", self._handle_token_refresh)
-        self._app.router.add_post(
-            "/v1/accounts:signInWithPassword", self._handle_sign_in
-        )
+        self._app.router.add_post("/v1/accounts:signInWithPassword", self._handle_sign_in)
         self._app.router.add_get("/health", self._handle_health)
 
     async def _handle_token_refresh(self, request: web.Request) -> web.Response:
@@ -134,15 +132,17 @@ class FirebaseMock:
             # Get the token info for the new token
             token_info = self.token_manager.validate_token(new_token)
 
-            return web.json_response({
-                "access_token": new_token,
-                "expires_in": str(self.config.token_expiry),
-                "token_type": "Bearer",
-                "refresh_token": token_info.refresh_token,
-                "id_token": new_token,
-                "user_id": token_info.user_id,
-                "project_id": "mock-project",
-            })
+            return web.json_response(
+                {
+                    "access_token": new_token,
+                    "expires_in": str(self.config.token_expiry),
+                    "token_type": "Bearer",
+                    "refresh_token": token_info.refresh_token,
+                    "id_token": new_token,
+                    "user_id": token_info.user_id,
+                    "project_id": "mock-project",
+                }
+            )
 
         except json.JSONDecodeError:
             return self._error_response("INVALID_JSON", "Invalid JSON body", 400)
@@ -177,29 +177,27 @@ class FirebaseMock:
             if not email:
                 return self._error_response("MISSING_EMAIL", "email is required", 400)
             if not password:
-                return self._error_response(
-                    "MISSING_PASSWORD", "password is required", 400
-                )
+                return self._error_response("MISSING_PASSWORD", "password is required", 400)
 
-            id_token, refresh_token, error = self.token_manager.authenticate(
-                email, password
-            )
+            id_token, refresh_token, error = self.token_manager.authenticate(email, password)
             if error:
                 status = 401 if error in ("INVALID_PASSWORD", "EMAIL_NOT_FOUND") else 400
                 return self._error_response(error, "Authentication failed", status)
 
             token_info = self.token_manager.validate_token(id_token)
 
-            return web.json_response({
-                "kind": "identitytoolkit#VerifyPasswordResponse",
-                "localId": token_info.user_id,
-                "email": email,
-                "displayName": "",
-                "idToken": id_token,
-                "registered": True,
-                "refreshToken": refresh_token,
-                "expiresIn": str(self.config.token_expiry),
-            })
+            return web.json_response(
+                {
+                    "kind": "identitytoolkit#VerifyPasswordResponse",
+                    "localId": token_info.user_id,
+                    "email": email,
+                    "displayName": "",
+                    "idToken": id_token,
+                    "registered": True,
+                    "refreshToken": refresh_token,
+                    "expiresIn": str(self.config.token_expiry),
+                }
+            )
 
         except json.JSONDecodeError:
             return self._error_response("INVALID_JSON", "Invalid JSON body", 400)
@@ -211,9 +209,7 @@ class FirebaseMock:
         """Health check endpoint."""
         return web.json_response({"status": "ok", "service": "firebase-mock"})
 
-    def _error_response(
-        self, error_code: str, message: str, status: int
-    ) -> web.Response:
+    def _error_response(self, error_code: str, message: str, status: int) -> web.Response:
         """Build error response matching Firebase format."""
         return web.json_response(
             {

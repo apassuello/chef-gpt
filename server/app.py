@@ -58,9 +58,9 @@ def create_app(config: Config | None = None) -> Flask:
         config = Config.load()
 
     # 3. Store config in app.config for access by routes
-    app.config['ANOVA_CONFIG'] = config
-    app.config['API_KEY'] = config.API_KEY
-    app.config['DEBUG'] = config.DEBUG
+    app.config["ANOVA_CONFIG"] = config
+    app.config["API_KEY"] = config.API_KEY
+    app.config["DEBUG"] = config.DEBUG
 
     # 4. Configure logging
     configure_logging(app)
@@ -96,13 +96,13 @@ def configure_logging(app: Flask) -> None:
     Reference: CLAUDE.md Section "Code Patterns > 4. Logging Pattern" (lines 439-515)
     """
     # Set logging level based on DEBUG config
-    log_level = logging.DEBUG if app.config.get('DEBUG') else logging.INFO
+    log_level = logging.DEBUG if app.config.get("DEBUG") else logging.INFO
 
     # Configure log format
     logging.basicConfig(
         level=log_level,
-        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-        datefmt='%Y-%m-%d %H:%M:%S'
+        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S",
     )
 
     # Set Flask app logger to same level
@@ -130,7 +130,7 @@ def init_app_context(app: Flask, config: dict[str, Any]) -> None:
 # ENTRY POINT FOR DEVELOPMENT SERVER
 # ==============================================================================
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     """
     Run development server.
 
@@ -152,17 +152,13 @@ if __name__ == '__main__':
 
     # Create and run the app
     app = create_app()
-    config = app.config['ANOVA_CONFIG']
+    config = app.config["ANOVA_CONFIG"]
 
     print(f"Starting server on {config.HOST}:{config.PORT}")
     print(f"Health check: http://{config.HOST}:{config.PORT}/health")
     print()
 
-    app.run(
-        host=config.HOST,
-        port=config.PORT,
-        debug=config.DEBUG
-    )
+    app.run(host=config.HOST, port=config.PORT, debug=config.DEBUG)
 
 
 # ==============================================================================

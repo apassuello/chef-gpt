@@ -137,7 +137,7 @@ class Config:
             ANOVA_PASSWORD=password,
             DEVICE_ID=device_id,
             API_KEY=os.environ.get("API_KEY"),
-            DEBUG=debug
+            DEBUG=debug,
         )
 
     @classmethod
@@ -171,7 +171,7 @@ class Config:
             ANOVA_PASSWORD=data["anova_password"],
             DEVICE_ID=data["device_id"],
             API_KEY=data.get("api_key"),
-            DEBUG=data.get("debug", False)
+            DEBUG=data.get("debug", False),
         )
 
     @classmethod
@@ -220,7 +220,7 @@ def load_config():
         "anova_password": config.ANOVA_PASSWORD,
         "device_id": config.DEVICE_ID,
         "api_key": config.API_KEY,
-        "debug": config.DEBUG
+        "debug": config.DEBUG,
     }
 
 

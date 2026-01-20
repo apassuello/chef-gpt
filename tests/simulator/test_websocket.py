@@ -49,6 +49,7 @@ async def simulator(config):
 @pytest.fixture
 def ws_url(config):
     """WebSocket URL builder."""
+
     def _build(token=None, accessories="APC"):
         base = f"ws://localhost:{config.ws_port}"
         params = []
@@ -59,6 +60,7 @@ def ws_url(config):
         if params:
             return f"{base}?{'&'.join(params)}"
         return base
+
     return _build
 
 

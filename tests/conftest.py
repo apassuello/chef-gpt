@@ -12,7 +12,6 @@ Reference:
 - CLAUDE.md Section "Testing Strategy"
 """
 
-
 import pytest
 import responses
 from flask.testing import FlaskClient
@@ -39,6 +38,7 @@ TEST_CONFIG = {
 # CORE FIXTURES
 # ==============================================================================
 
+
 @pytest.fixture
 def app(monkeypatch):
     """
@@ -59,7 +59,7 @@ def app(monkeypatch):
     app = create_app(config)
 
     # Set Flask-specific test configuration
-    app.config['TESTING'] = True
+    app.config["TESTING"] = True
 
     yield app
 
@@ -86,6 +86,7 @@ def client(app) -> FlaskClient:
 # AUTHENTICATION FIXTURES
 # ==============================================================================
 
+
 @pytest.fixture
 def auth_headers():
     """
@@ -96,10 +97,7 @@ def auth_headers():
 
     Reference: Spec Section 2.3 (lines 136-155)
     """
-    return {
-        "Authorization": "Bearer test-api-key-12345",
-        "Content-Type": "application/json"
-    }
+    return {"Authorization": "Bearer test-api-key-12345", "Content-Type": "application/json"}
 
 
 @pytest.fixture
@@ -112,15 +110,13 @@ def invalid_auth_headers():
 
     Reference: Spec Section 2.3 (lines 148-155)
     """
-    return {
-        "Authorization": "Bearer wrong-key",
-        "Content-Type": "application/json"
-    }
+    return {"Authorization": "Bearer wrong-key", "Content-Type": "application/json"}
 
 
 # ==============================================================================
 # TEST DATA FIXTURES
 # ==============================================================================
+
 
 @pytest.fixture
 def valid_cook_requests():
@@ -141,33 +137,12 @@ def valid_cook_requests():
     Reference: Spec Section 2.4 (lines 162-193)
     """
     return {
-        "chicken": {
-            "temperature_celsius": 65.0,
-            "time_minutes": 90,
-            "food_type": "chicken breast"
-        },
-        "steak": {
-            "temperature_celsius": 54.0,
-            "time_minutes": 120,
-            "food_type": "ribeye steak"
-        },
-        "salmon": {
-            "temperature_celsius": 52.0,
-            "time_minutes": 45,
-            "food_type": "salmon fillet"
-        },
-        "edge_case_min_temp": {
-            "temperature_celsius": 40.0,
-            "time_minutes": 60
-        },
-        "edge_case_max_temp": {
-            "temperature_celsius": 100.0,
-            "time_minutes": 60
-        },
-        "edge_case_max_time": {
-            "temperature_celsius": 65.0,
-            "time_minutes": 5999
-        }
+        "chicken": {"temperature_celsius": 65.0, "time_minutes": 90, "food_type": "chicken breast"},
+        "steak": {"temperature_celsius": 54.0, "time_minutes": 120, "food_type": "ribeye steak"},
+        "salmon": {"temperature_celsius": 52.0, "time_minutes": 45, "food_type": "salmon fillet"},
+        "edge_case_min_temp": {"temperature_celsius": 40.0, "time_minutes": 60},
+        "edge_case_max_temp": {"temperature_celsius": 100.0, "time_minutes": 60},
+        "edge_case_max_time": {"temperature_celsius": 65.0, "time_minutes": 5999},
     }
 
 
@@ -195,49 +170,44 @@ def invalid_cook_requests():
         "temp_too_low": {
             "temperature_celsius": 35.0,
             "time_minutes": 60,
-            "expected_error": "TEMPERATURE_TOO_LOW"
+            "expected_error": "TEMPERATURE_TOO_LOW",
         },
         "temp_too_high": {
             "temperature_celsius": 105.0,
             "time_minutes": 60,
-            "expected_error": "TEMPERATURE_TOO_HIGH"
+            "expected_error": "TEMPERATURE_TOO_HIGH",
         },
         "unsafe_poultry": {
             "temperature_celsius": 56.0,
             "time_minutes": 90,
             "food_type": "chicken",
-            "expected_error": "POULTRY_TEMP_UNSAFE"
+            "expected_error": "POULTRY_TEMP_UNSAFE",
         },
         "unsafe_ground_meat": {
             "temperature_celsius": 59.0,
             "time_minutes": 60,
             "food_type": "ground beef",
-            "expected_error": "GROUND_MEAT_TEMP_UNSAFE"
+            "expected_error": "GROUND_MEAT_TEMP_UNSAFE",
         },
         "time_zero": {
             "temperature_celsius": 65.0,
             "time_minutes": 0,
-            "expected_error": "TIME_TOO_SHORT"
+            "expected_error": "TIME_TOO_SHORT",
         },
         "time_too_long": {
             "temperature_celsius": 65.0,
             "time_minutes": 6000,
-            "expected_error": "TIME_TOO_LONG"
+            "expected_error": "TIME_TOO_LONG",
         },
-        "missing_temperature": {
-            "time_minutes": 90,
-            "expected_error": "MISSING_TEMPERATURE"
-        },
-        "missing_time": {
-            "temperature_celsius": 65.0,
-            "expected_error": "MISSING_TIME"
-        }
+        "missing_temperature": {"time_minutes": 90, "expected_error": "MISSING_TEMPERATURE"},
+        "missing_time": {"temperature_celsius": 65.0, "expected_error": "MISSING_TIME"},
     }
 
 
 # ==============================================================================
 # ANOVA API MOCK FIXTURES
 # ==============================================================================
+
 
 @pytest.fixture
 def mock_anova_api_success():
@@ -268,9 +238,9 @@ def mock_anova_api_success():
         json={
             "idToken": "mock-id-token-12345",
             "refreshToken": "mock-refresh-token",
-            "expiresIn": "3600"
+            "expiresIn": "3600",
         },
-        status=200
+        status=200,
     )
 
     # Mock device status (idle) - first call before start cook
@@ -283,9 +253,9 @@ def mock_anova_api_success():
             "currentTemperature": 22.5,
             "targetTemperature": None,
             "cookTimeRemaining": None,
-            "cookTimeElapsed": None
+            "cookTimeElapsed": None,
         },
-        status=200
+        status=200,
     )
 
     # Mock device status (preheating) - subsequent calls after start cook
@@ -298,9 +268,9 @@ def mock_anova_api_success():
             "currentTemperature": 45.0,
             "targetTemperature": 65.0,
             "cookTimeRemaining": 5400,  # 90 minutes in seconds
-            "cookTimeElapsed": 0
+            "cookTimeElapsed": 0,
         },
-        status=200
+        status=200,
     )
 
     # Mock start cook command
@@ -310,20 +280,17 @@ def mock_anova_api_success():
         json={
             "success": True,
             "cookId": "550e8400-e29b-41d4-a716-446655440000",  # UUID format
-            "state": "preheating"
+            "state": "preheating",
         },
-        status=200
+        status=200,
     )
 
     # Mock stop cook command
     responses.add(
         responses.POST,
         "https://anovaculinary.io/api/v1/devices/test-device-123/stop",
-        json={
-            "success": True,
-            "state": "idle"
-        },
-        status=200
+        json={"success": True, "state": "idle"},
+        status=200,
     )
 
 
@@ -355,19 +322,17 @@ def mock_anova_api_offline():
         json={
             "idToken": "mock-id-token-12345",
             "refreshToken": "mock-refresh-token",
-            "expiresIn": "3600"
+            "expiresIn": "3600",
         },
-        status=200
+        status=200,
     )
 
     # Mock device offline (404 or online=false)
     responses.add(
         responses.GET,
         "https://anovaculinary.io/api/v1/devices/test-device-123",
-        json={
-            "error": "Device not found or offline"
-        },
-        status=404
+        json={"error": "Device not found or offline"},
+        status=404,
     )
 
 
@@ -400,9 +365,9 @@ def mock_anova_api_busy():
         json={
             "idToken": "mock-id-token-12345",
             "refreshToken": "mock-refresh-token",
-            "expiresIn": "3600"
+            "expiresIn": "3600",
         },
-        status=200
+        status=200,
     )
 
     # Mock device status (already cooking)
@@ -414,25 +379,24 @@ def mock_anova_api_busy():
             "cookerState": "COOKING",
             "currentTemperature": 65.0,
             "targetTemperature": 65.0,
-            "cookTimeRemaining": 2700
+            "cookTimeRemaining": 2700,
         },
-        status=200
+        status=200,
     )
 
     # Mock start cook rejection (409)
     responses.add(
         responses.POST,
         "https://anovaculinary.io/api/v1/devices/test-device-123/start",
-        json={
-            "error": "Device already cooking"
-        },
-        status=409
+        json={"error": "Device already cooking"},
+        status=409,
     )
 
 
 # ==============================================================================
 # BACKWARD COMPATIBILITY (for existing unit tests)
 # ==============================================================================
+
 
 @pytest.fixture
 def valid_cook_request():
@@ -442,11 +406,7 @@ def valid_cook_request():
     DEPRECATED: Use valid_cook_requests["chicken"] instead.
     Kept for backward compatibility with existing unit tests.
     """
-    return {
-        "temperature_celsius": 65.0,
-        "time_minutes": 90,
-        "food_type": "chicken"
-    }
+    return {"temperature_celsius": 65.0, "time_minutes": 90, "food_type": "chicken"}
 
 
 @pytest.fixture
@@ -457,10 +417,7 @@ def invalid_temp_request():
     DEPRECATED: Use invalid_cook_requests["temp_too_low"] instead.
     Kept for backward compatibility with existing unit tests.
     """
-    return {
-        "temperature_celsius": 39.9,
-        "time_minutes": 90
-    }
+    return {"temperature_celsius": 39.9, "time_minutes": 90}
 
 
 @pytest.fixture

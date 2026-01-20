@@ -23,6 +23,7 @@ from server.config import Config
 # TEST FIXTURES
 # ==============================================================================
 
+
 @pytest.fixture
 def clean_env(monkeypatch):
     """
@@ -38,7 +39,7 @@ def clean_env(monkeypatch):
         "API_KEY",
         "DEBUG",
         "FIREBASE_API_KEY",
-        "ENCRYPTION_KEY"
+        "ENCRYPTION_KEY",
     ]
 
     for var in config_vars:
@@ -75,7 +76,7 @@ def temp_config_json(tmp_path):
         "anova_password": "json-password",
         "device_id": "json-device-456",
         "api_key": "sk-anova-json-key",
-        "debug": False
+        "debug": False,
     }
 
     config_file = tmp_path / "credentials.json"
@@ -87,6 +88,7 @@ def temp_config_json(tmp_path):
 # ==============================================================================
 # ENVIRONMENT LOADING TESTS
 # ==============================================================================
+
 
 def test_load_from_environment_success(mock_env_vars):
     """
@@ -172,6 +174,7 @@ def test_load_from_environment_optional_fields(monkeypatch, clean_env):
 # JSON FILE LOADING TESTS
 # ==============================================================================
 
+
 def test_load_from_json_success(clean_env, temp_config_json, monkeypatch):
     """
     TC-CFG-06: Loading from JSON file should succeed.
@@ -182,8 +185,7 @@ def test_load_from_json_success(clean_env, temp_config_json, monkeypatch):
     """
     # Mock the config path to point to temp file
     monkeypatch.setattr(
-        "server.config.Path",
-        lambda x: temp_config_json.parent if "__file__" in str(x) else Path(x)
+        "server.config.Path", lambda x: temp_config_json.parent if "__file__" in str(x) else Path(x)
     )
 
     config = Config._from_json_file(temp_config_json)
@@ -205,7 +207,7 @@ def test_load_from_json_missing_field(tmp_path, clean_env):
     """
     incomplete_config = {
         "anova_email": "json@example.com",
-        "anova_password": "json-password"
+        "anova_password": "json-password",
         # Missing device_id
     }
 
@@ -219,6 +221,7 @@ def test_load_from_json_missing_field(tmp_path, clean_env):
 # ==============================================================================
 # CONFIGURATION PRIORITY TESTS
 # ==============================================================================
+
 
 def test_environment_takes_priority_over_json(mock_env_vars, temp_config_json, monkeypatch):
     """
@@ -274,6 +277,7 @@ def test_no_config_source_available(clean_env):
 # SAFETY CONSTANTS TESTS
 # ==============================================================================
 
+
 def test_safety_constants_hardcoded(mock_env_vars):
     """
     TC-CFG-10: Safety constants should always be hardcoded values.
@@ -317,6 +321,7 @@ def test_safety_constants_not_configurable(monkeypatch, clean_env):
 # ==============================================================================
 # ENCRYPTED FILE TESTS
 # ==============================================================================
+
 
 def test_encrypted_file_not_implemented(tmp_path, clean_env, monkeypatch):
     """

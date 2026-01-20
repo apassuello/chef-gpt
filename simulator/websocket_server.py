@@ -137,20 +137,26 @@ class WebSocketServer:
         token_list = params.get("token", [])
         if not token_list:
             logger.warning("Connection rejected: missing token")
-            return Response(401, "Unauthorized", websockets.Headers([("Content-Type", "text/plain")]))
+            return Response(
+                401, "Unauthorized", websockets.Headers([("Content-Type", "text/plain")])
+            )
 
         token = token_list[0]
 
         # Validate token
         if not self._validate_token(token):
             logger.warning("Connection rejected: invalid token")
-            return Response(401, "Unauthorized", websockets.Headers([("Content-Type", "text/plain")]))
+            return Response(
+                401, "Unauthorized", websockets.Headers([("Content-Type", "text/plain")])
+            )
 
         # Check supportedAccessories
         accessories = params.get("supportedAccessories", ["APC"])
         if "APC" not in accessories[0]:
             logger.warning("Connection rejected: APC not in supportedAccessories")
-            return Response(400, "Bad Request", websockets.Headers([("Content-Type", "text/plain")]))
+            return Response(
+                400, "Bad Request", websockets.Headers([("Content-Type", "text/plain")])
+            )
 
         # Accept connection
         return None
@@ -341,7 +347,7 @@ class WebSocketServer:
 
         # Limit history size
         if len(self.message_history) > self._max_history:
-            self.message_history = self.message_history[-self._max_history:]
+            self.message_history = self.message_history[-self._max_history :]
 
     async def disconnect_all(self, code: int = 1006, reason: str = "Device offline"):
         """Disconnect all clients (for offline simulation)."""

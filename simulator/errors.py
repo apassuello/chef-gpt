@@ -171,11 +171,7 @@ class ErrorSimulator:
 
     def get_active_errors(self) -> list[ErrorType]:
         """Get list of currently active errors."""
-        return [
-            error_type
-            for error_type, config in self._errors.items()
-            if config.enabled
-        ]
+        return [error_type for error_type, config in self._errors.items() if config.enabled]
 
     def get_error_config(self, error_type: ErrorType) -> ErrorConfig:
         """Get configuration for an error type."""
@@ -201,9 +197,7 @@ class ErrorSimulator:
             return
 
         if error_type == ErrorType.DEVICE_OFFLINE:
-            await self.simulator.ws_server.disconnect_all(
-                code=1006, reason="Device offline"
-            )
+            await self.simulator.ws_server.disconnect_all(code=1006, reason="Device offline")
             self.simulator.state.online = False
 
         elif error_type == ErrorType.WATER_LEVEL_LOW:

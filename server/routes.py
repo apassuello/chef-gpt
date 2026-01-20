@@ -28,14 +28,15 @@ from .validators import validate_start_cook
 logger = logging.getLogger(__name__)
 
 # Create Blueprint for API routes
-api = Blueprint('api', __name__)
+api = Blueprint("api", __name__)
 
 
 # ==============================================================================
 # HEALTH CHECK ENDPOINT
 # ==============================================================================
 
-@api.route('/health', methods=['GET'])
+
+@api.route("/health", methods=["GET"])
 def health() -> tuple[dict[str, Any], int]:
     """
     Health check endpoint.
@@ -60,18 +61,21 @@ def health() -> tuple[dict[str, Any], int]:
     """
     from datetime import datetime
 
-    return jsonify({
-        "status": "ok",
-        "version": "1.0.0",
-        "timestamp": datetime.now(UTC).isoformat().replace('+00:00', 'Z')
-    }), 200
+    return jsonify(
+        {
+            "status": "ok",
+            "version": "1.0.0",
+            "timestamp": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
+        }
+    ), 200
 
 
 # ==============================================================================
 # COOKING CONTROL ENDPOINTS
 # ==============================================================================
 
-@api.route('/start-cook', methods=['POST'])
+
+@api.route("/start-cook", methods=["POST"])
 @require_api_key
 def start_cook() -> tuple[dict[str, Any], int]:
     """
@@ -116,20 +120,19 @@ def start_cook() -> tuple[dict[str, Any], int]:
     validated = validate_start_cook(request.json or {})
 
     # Get configuration from app context
-    config: Config = current_app.config['ANOVA_CONFIG']
+    config: Config = current_app.config["ANOVA_CONFIG"]
 
     # Create Anova client and start cook
     client = AnovaClient(config)
     result = client.start_cook(
-        temperature_c=validated['temperature_celsius'],
-        time_minutes=validated['time_minutes']
+        temperature_c=validated["temperature_celsius"], time_minutes=validated["time_minutes"]
     )
 
     # Return success response
     return jsonify(result), 200
 
 
-@api.route('/status', methods=['GET'])
+@api.route("/status", methods=["GET"])
 @require_api_key
 def get_status() -> tuple[dict[str, Any], int]:
     """
@@ -156,7 +159,7 @@ def get_status() -> tuple[dict[str, Any], int]:
     Reference: CLAUDE.md Section "API Endpoints Reference > GET /status" (lines 980-1002)
     """
     # Get configuration from app context
-    config: Config = current_app.config['ANOVA_CONFIG']
+    config: Config = current_app.config["ANOVA_CONFIG"]
 
     # Create Anova client and get status
     client = AnovaClient(config)
@@ -166,7 +169,7 @@ def get_status() -> tuple[dict[str, Any], int]:
     return jsonify(status), 200
 
 
-@api.route('/stop-cook', methods=['POST'])
+@api.route("/stop-cook", methods=["POST"])
 @require_api_key
 def stop_cook() -> tuple[dict[str, Any], int]:
     """
@@ -190,7 +193,7 @@ def stop_cook() -> tuple[dict[str, Any], int]:
     Reference: CLAUDE.md Section "API Endpoints Reference > POST /stop-cook" (lines 1004-1026)
     """
     # Get configuration from app context
-    config: Config = current_app.config['ANOVA_CONFIG']
+    config: Config = current_app.config["ANOVA_CONFIG"]
 
     # Create Anova client and stop cook
     client = AnovaClient(config)

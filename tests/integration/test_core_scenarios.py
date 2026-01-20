@@ -14,10 +14,7 @@ import responses
 
 @responses.activate
 def test_int_01_happy_path_start_cook(
-    client,
-    auth_headers,
-    valid_cook_requests,
-    mock_anova_api_success
+    client, auth_headers, valid_cook_requests, mock_anova_api_success
 ):
     """
     INT-01: Happy Path - Start Cook
@@ -39,21 +36,25 @@ def test_int_01_happy_path_start_cook(
 
     # ACT 1: Start cook with valid chicken parameters
     start_response = client.post(
-        '/start-cook',
-        headers=auth_headers,
-        json=valid_cook_requests["chicken"]
+        "/start-cook", headers=auth_headers, json=valid_cook_requests["chicken"]
     )
 
     # ASSERT 1: Start cook succeeded
-    assert start_response.status_code == 200, \
+    assert start_response.status_code == 200, (
         f"Expected 200, got {start_response.status_code}: {start_response.get_json()}"
+    )
 
     start_data = start_response.get_json()
 
     # Validate response schema (all required fields present)
     required_fields = [
-        "success", "message", "cook_id", "device_state",
-        "target_temp_celsius", "time_minutes", "estimated_completion"
+        "success",
+        "message",
+        "cook_id",
+        "device_state",
+        "target_temp_celsius",
+        "time_minutes",
+        "estimated_completion",
     ]
     for field in required_fields:
         assert field in start_data, f"Response missing required field: {field}"
@@ -71,7 +72,7 @@ def test_int_01_happy_path_start_cook(
     assert start_data["estimated_completion"].endswith("Z")  # UTC
 
     # ACT 2: Check status after starting cook
-    status_response = client.get('/status', headers=auth_headers)
+    status_response = client.get("/status", headers=auth_headers)
 
     # ASSERT 2: Status shows device running
     assert status_response.status_code == 200

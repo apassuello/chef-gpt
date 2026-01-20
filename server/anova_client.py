@@ -85,10 +85,9 @@ class AnovaClient:
         """
         self.config = config
         self.session = requests.Session()
-        self.session.headers.update({
-            'Content-Type': 'application/json',
-            'Accept': 'application/json'
-        })
+        self.session.headers.update(
+            {"Content-Type": "application/json", "Accept": "application/json"}
+        )
 
         # Initialize empty token state
         self._access_token: str | None = None
@@ -119,7 +118,7 @@ class AnovaClient:
 
         Reference: docs/02-security-architecture.md Section 4.1
         """
-        firebase_api_key = os.getenv('FIREBASE_API_KEY')
+        firebase_api_key = os.getenv("FIREBASE_API_KEY")
         if not firebase_api_key:
             raise AuthenticationError("FIREBASE_API_KEY environment variable not set")
 
@@ -127,7 +126,7 @@ class AnovaClient:
         payload = {
             "email": self.config.ANOVA_EMAIL,
             "password": self.config.ANOVA_PASSWORD,
-            "returnSecureToken": True
+            "returnSecureToken": True,
         }
 
         try:
@@ -150,7 +149,9 @@ class AnovaClient:
         except requests.exceptions.RequestException as e:
             raise AuthenticationError(f"Network error during authentication: {e!s}") from e
         except KeyError as e:
-            raise AuthenticationError(f"Unexpected response format from Firebase: missing {e}") from e
+            raise AuthenticationError(
+                f"Unexpected response format from Firebase: missing {e}"
+            ) from e
 
     def _refresh_access_token(self) -> None:
         """
@@ -171,15 +172,12 @@ class AnovaClient:
 
         Reference: docs/02-security-architecture.md Section 4.1
         """
-        firebase_api_key = os.getenv('FIREBASE_API_KEY')
+        firebase_api_key = os.getenv("FIREBASE_API_KEY")
         if not firebase_api_key:
             raise AuthenticationError("FIREBASE_API_KEY environment variable not set")
 
         url = f"{self.FIREBASE_REFRESH_URL}?key={firebase_api_key}"
-        payload = {
-            "grant_type": "refresh_token",
-            "refresh_token": self._refresh_token
-        }
+        payload = {"grant_type": "refresh_token", "refresh_token": self._refresh_token}
 
         try:
             response = requests.post(url, json=payload, timeout=10)
@@ -205,7 +203,9 @@ class AnovaClient:
             logger.warning(f"Network error during token refresh: {e}, re-authenticating")
             self._authenticate()
         except KeyError as e:
-            logger.warning(f"Unexpected response format during token refresh: {e}, re-authenticating")
+            logger.warning(
+                f"Unexpected response format during token refresh: {e}, re-authenticating"
+            )
             self._authenticate()
 
     def _ensure_authenticated(self) -> None:
@@ -252,16 +252,12 @@ class AnovaClient:
         url = f"{self.ANOVA_BASE_URL}{endpoint}"
 
         # Add authorization header
-        headers = kwargs.pop('headers', {})
-        headers['Authorization'] = f"Bearer {self._access_token}"
+        headers = kwargs.pop("headers", {})
+        headers["Authorization"] = f"Bearer {self._access_token}"
 
         try:
             response = self.session.request(
-                method=method,
-                url=url,
-                headers=headers,
-                timeout=10,
-                **kwargs
+                method=method, url=url, headers=headers, timeout=10, **kwargs
             )
 
             # Handle specific status codes
@@ -270,7 +266,9 @@ class AnovaClient:
 
             if response.status_code >= 400:
                 error_msg = response.json().get("error", "Unknown error")
-                raise AnovaAPIError(f"Anova API error ({response.status_code}): {error_msg}", response.status_code)
+                raise AnovaAPIError(
+                    f"Anova API error ({response.status_code}): {error_msg}", response.status_code
+                )
 
             return response.json()
 
@@ -290,16 +288,16 @@ class AnovaClient:
             Normalized state: "idle", "preheating", "cooking", or "done"
         """
         state_map = {
-            'idle': 'idle',
-            'preheating': 'preheating',
-            'cooking': 'cooking',
-            'maintaining': 'cooking',  # Maintaining temp = cooking
-            'done': 'done',
-            'stopped': 'idle'
+            "idle": "idle",
+            "preheating": "preheating",
+            "cooking": "cooking",
+            "maintaining": "cooking",  # Maintaining temp = cooking
+            "done": "done",
+            "stopped": "idle",
         }
 
         normalized = anova_state.lower()
-        return state_map.get(normalized, 'idle')
+        return state_map.get(normalized, "idle")
 
     def get_status(self) -> dict[str, Any]:
         """
@@ -326,24 +324,26 @@ class AnovaClient:
         endpoint = f"/devices/{self.config.DEVICE_ID}"
 
         try:
-            data = self._api_request('GET', endpoint)
+            data = self._api_request("GET", endpoint)
 
             # Parse Anova response
-            state = self._map_state(data.get('cookerState', 'idle'))
-            is_running = state in ['preheating', 'cooking']
+            state = self._map_state(data.get("cookerState", "idle"))
+            is_running = state in ["preheating", "cooking"]
 
             # Convert times from seconds to minutes
-            time_remaining = data.get('cookTimeRemaining')
-            time_elapsed = data.get('cookTimeElapsed')
+            time_remaining = data.get("cookTimeRemaining")
+            time_elapsed = data.get("cookTimeElapsed")
 
             return {
-                'device_online': True,
-                'state': state,
-                'current_temp_celsius': float(data.get('currentTemperature', 0)),
-                'target_temp_celsius': float(data['targetTemperature']) if data.get('targetTemperature') else None,
-                'time_remaining_minutes': int(time_remaining // 60) if time_remaining else None,
-                'time_elapsed_minutes': int(time_elapsed // 60) if time_elapsed else None,
-                'is_running': is_running
+                "device_online": True,
+                "state": state,
+                "current_temp_celsius": float(data.get("currentTemperature", 0)),
+                "target_temp_celsius": float(data["targetTemperature"])
+                if data.get("targetTemperature")
+                else None,
+                "time_remaining_minutes": int(time_remaining // 60) if time_remaining else None,
+                "time_elapsed_minutes": int(time_elapsed // 60) if time_elapsed else None,
+                "is_running": is_running,
             }
 
         except DeviceOfflineError:
@@ -381,7 +381,7 @@ class AnovaClient:
         # Check if device is already cooking
         try:
             status = self.get_status()
-            if status['is_running']:
+            if status["is_running"]:
                 raise DeviceBusyError("Device is already cooking. Stop current cook first.")
         except DeviceOfflineError:
             raise
@@ -390,25 +390,25 @@ class AnovaClient:
         endpoint = f"/devices/{self.config.DEVICE_ID}/cook"
         payload = {
             "temperature": temperature_c,
-            "timer": time_minutes * 60  # Convert to seconds
+            "timer": time_minutes * 60,  # Convert to seconds
         }
 
-        data = self._api_request('POST', endpoint, json=payload)
+        data = self._api_request("POST", endpoint, json=payload)
 
         # Generate cook_id if not provided
-        cook_id = data.get('cookId', f"cook_{int(datetime.now().timestamp())}")
+        cook_id = data.get("cookId", f"cook_{int(datetime.now().timestamp())}")
 
         # Calculate estimated completion
         estimated_completion = datetime.now() + timedelta(minutes=time_minutes)
 
         return {
-            'success': True,
-            'message': 'Cook started successfully',
-            'cook_id': cook_id,
-            'device_state': 'preheating',
-            'target_temp_celsius': temperature_c,
-            'time_minutes': time_minutes,
-            'estimated_completion': estimated_completion.isoformat() + 'Z'
+            "success": True,
+            "message": "Cook started successfully",
+            "cook_id": cook_id,
+            "device_state": "preheating",
+            "target_temp_celsius": temperature_c,
+            "time_minutes": time_minutes,
+            "estimated_completion": estimated_completion.isoformat() + "Z",
         }
 
     def stop_cook(self) -> dict[str, Any]:
@@ -435,23 +435,23 @@ class AnovaClient:
         # Check if there's an active cook and capture final temperature
         try:
             status = self.get_status()
-            if not status['is_running']:
+            if not status["is_running"]:
                 raise NoActiveCookError("No active cook to stop")
 
             # Capture current temperature before stopping
-            final_temp = status['current_temp_celsius']
+            final_temp = status["current_temp_celsius"]
         except DeviceOfflineError:
             raise
 
         # Stop cook command
         endpoint = f"/devices/{self.config.DEVICE_ID}/stop"
-        self._api_request('POST', endpoint)
+        self._api_request("POST", endpoint)
 
         return {
-            'success': True,
-            'message': 'Cook stopped successfully',
-            'device_state': 'idle',
-            'final_temp_celsius': final_temp
+            "success": True,
+            "message": "Cook stopped successfully",
+            "device_state": "idle",
+            "final_temp_celsius": final_temp,
         }
 
 

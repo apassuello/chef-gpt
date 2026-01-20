@@ -183,10 +183,13 @@ async def test_err01_device_goes_offline(err01_setup):
     assert len(sim.ws_server.clients) == 1
 
     # Trigger device offline via API
-    async with aiohttp.ClientSession() as session, session.post(
-        f"{ctl_url}/trigger-error",
-        json={"error_type": "device_offline"},
-    ) as resp:
+    async with (
+        aiohttp.ClientSession() as session,
+        session.post(
+            f"{ctl_url}/trigger-error",
+            json={"error_type": "device_offline"},
+        ) as resp,
+    ):
         assert resp.status == 200
         data = await resp.json()
         assert data["status"] == "triggered"
@@ -246,10 +249,13 @@ async def test_err02_water_level_low_warning(err02_setup):
         assert initial["payload"]["state"]["pin-info"]["water-level-low"] == 0
 
         # Trigger water level low
-        async with aiohttp.ClientSession() as session, session.post(
-            f"{ctl_url}/trigger-error",
-            json={"error_type": "water_level_low"},
-        ) as resp:
+        async with (
+            aiohttp.ClientSession() as session,
+            session.post(
+                f"{ctl_url}/trigger-error",
+                json={"error_type": "water_level_low"},
+            ) as resp,
+        ):
             assert resp.status == 200
 
         # Should receive state update with water-level-low=1
@@ -300,10 +306,13 @@ async def test_err03_water_level_critical_stops_cooking(err03_setup):
     sim.state.job.target_temperature = 65.0
 
     # Trigger water level critical
-    async with aiohttp.ClientSession() as session, session.post(
-        f"{ctl_url}/trigger-error",
-        json={"error_type": "water_level_critical"},
-    ) as resp:
+    async with (
+        aiohttp.ClientSession() as session,
+        session.post(
+            f"{ctl_url}/trigger-error",
+            json={"error_type": "water_level_critical"},
+        ) as resp,
+    ):
         assert resp.status == 200
 
     # Verify cooking stopped
@@ -325,10 +334,13 @@ async def test_err04_network_latency(error_setup):
     ctl_url = f"http://localhost:{config.control_port}"
 
     # Trigger network latency
-    async with aiohttp.ClientSession() as session, session.post(
-        f"{ctl_url}/trigger-error",
-        json={"error_type": "network_latency", "latency_ms": 500},
-    ) as resp:
+    async with (
+        aiohttp.ClientSession() as session,
+        session.post(
+            f"{ctl_url}/trigger-error",
+            json={"error_type": "network_latency", "latency_ms": 500},
+        ) as resp,
+    ):
         assert resp.status == 200
         data = await resp.json()
         assert data["latency_ms"] == 500
@@ -350,10 +362,13 @@ async def test_err05_intermittent_failures(error_setup):
     ctl_url = f"http://localhost:{config.control_port}"
 
     # Trigger intermittent failures with 50% rate
-    async with aiohttp.ClientSession() as session, session.post(
-        f"{ctl_url}/trigger-error",
-        json={"error_type": "intermittent_failure", "failure_rate": 0.5},
-    ) as resp:
+    async with (
+        aiohttp.ClientSession() as session,
+        session.post(
+            f"{ctl_url}/trigger-error",
+            json={"error_type": "intermittent_failure", "failure_rate": 0.5},
+        ) as resp,
+    ):
         assert resp.status == 200
         data = await resp.json()
         assert data["failure_rate"] == 0.5
@@ -429,10 +444,13 @@ async def test_invalid_error_type(error_setup):
 
     ctl_url = f"http://localhost:{config.control_port}"
 
-    async with aiohttp.ClientSession() as session, session.post(
-        f"{ctl_url}/trigger-error",
-        json={"error_type": "invalid_error"},
-    ) as resp:
+    async with (
+        aiohttp.ClientSession() as session,
+        session.post(
+            f"{ctl_url}/trigger-error",
+            json={"error_type": "invalid_error"},
+        ) as resp,
+    ):
         assert resp.status == 400
         data = await resp.json()
         assert data["error"] == "INVALID_ERROR_TYPE"
@@ -449,10 +467,13 @@ async def test_motor_stuck_error(error_setup):
     sim.state.motor_info.rpm = 1200
 
     # Trigger motor stuck
-    async with aiohttp.ClientSession() as session, session.post(
-        f"{ctl_url}/trigger-error",
-        json={"error_type": "motor_stuck"},
-    ) as resp:
+    async with (
+        aiohttp.ClientSession() as session,
+        session.post(
+            f"{ctl_url}/trigger-error",
+            json={"error_type": "motor_stuck"},
+        ) as resp,
+    ):
         assert resp.status == 200
 
     # Verify state

@@ -36,9 +36,7 @@ class TestTokenManager:
         """Should return tokens for valid credentials."""
         tm = TokenManager({"test@example.com": "password123"})
 
-        id_token, refresh_token, error = tm.authenticate(
-            "test@example.com", "password123"
-        )
+        id_token, refresh_token, error = tm.authenticate("test@example.com", "password123")
 
         assert id_token is not None
         assert refresh_token is not None
@@ -48,9 +46,7 @@ class TestTokenManager:
         """Should reject invalid password."""
         tm = TokenManager({"test@example.com": "password123"})
 
-        id_token, refresh_token, error = tm.authenticate(
-            "test@example.com", "wrongpassword"
-        )
+        id_token, refresh_token, error = tm.authenticate("test@example.com", "wrongpassword")
 
         assert id_token is None
         assert refresh_token is None
@@ -60,9 +56,7 @@ class TestTokenManager:
         """Should reject unknown email."""
         tm = TokenManager({"test@example.com": "password123"})
 
-        id_token, refresh_token, error = tm.authenticate(
-            "unknown@example.com", "password123"
-        )
+        id_token, refresh_token, error = tm.authenticate("unknown@example.com", "password123")
 
         assert id_token is None
         assert refresh_token is None
@@ -215,7 +209,9 @@ async def test_auth03_websocket_with_firebase_token(auth03_simulator, auth03_con
 
     async with aiohttp.ClientSession() as session:
         # Get token from Firebase
-        sign_in_url = f"http://localhost:{auth03_config.firebase_port}/v1/accounts:signInWithPassword"
+        sign_in_url = (
+            f"http://localhost:{auth03_config.firebase_port}/v1/accounts:signInWithPassword"
+        )
         async with session.post(
             sign_in_url,
             json={"email": "test@example.com", "password": "testpassword123"},
@@ -258,7 +254,9 @@ async def test_auth04_token_expiry_simulation(auth04_firebase, auth04_config):
     """AUTH-04: Token expiry simulation works correctly."""
     # Get token from Firebase
     async with aiohttp.ClientSession() as session:
-        sign_in_url = f"http://localhost:{auth04_config.firebase_port}/v1/accounts:signInWithPassword"
+        sign_in_url = (
+            f"http://localhost:{auth04_config.firebase_port}/v1/accounts:signInWithPassword"
+        )
         async with session.post(
             sign_in_url,
             json={"email": "test@example.com", "password": "testpassword123"},

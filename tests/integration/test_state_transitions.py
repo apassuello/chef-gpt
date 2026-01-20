@@ -13,11 +13,7 @@ import responses
 
 
 @responses.activate
-def test_int_st_01_idle_to_preheating(
-    client,
-    auth_headers,
-    valid_cook_requests
-):
+def test_int_st_01_idle_to_preheating(client, auth_headers, valid_cook_requests):
     """
     INT-ST-01: Starting cook transitions from idle to preheating.
 
@@ -30,9 +26,9 @@ def test_int_st_01_idle_to_preheating(
         json={
             "idToken": "mock-id-token",
             "refreshToken": "mock-refresh-token",
-            "expiresIn": "3600"
+            "expiresIn": "3600",
         },
-        status=200
+        status=200,
     )
 
     # Mock 1st status check: device is idle
@@ -45,9 +41,9 @@ def test_int_st_01_idle_to_preheating(
             "currentTemperature": 22.5,
             "targetTemperature": None,
             "cookTimeRemaining": None,
-            "cookTimeElapsed": None
+            "cookTimeElapsed": None,
         },
-        status=200
+        status=200,
     )
 
     # Mock 2nd status check (inside start_cook): device still idle
@@ -60,9 +56,9 @@ def test_int_st_01_idle_to_preheating(
             "currentTemperature": 22.5,
             "targetTemperature": None,
             "cookTimeRemaining": None,
-            "cookTimeElapsed": None
+            "cookTimeElapsed": None,
         },
-        status=200
+        status=200,
     )
 
     # Mock start cook command succeeds
@@ -72,9 +68,9 @@ def test_int_st_01_idle_to_preheating(
         json={
             "success": True,
             "cookId": "550e8400-e29b-41d4-a716-446655440000",
-            "state": "preheating"
+            "state": "preheating",
         },
-        status=200
+        status=200,
     )
 
     # Mock 3rd status check (after start): device now preheating
@@ -87,39 +83,35 @@ def test_int_st_01_idle_to_preheating(
             "currentTemperature": 45.0,
             "targetTemperature": 65.0,
             "cookTimeRemaining": 5400,
-            "cookTimeElapsed": 0
+            "cookTimeElapsed": 0,
         },
-        status=200
+        status=200,
     )
 
     # ACT 1: Verify initial state is idle
-    response = client.get('/status', headers=auth_headers)
+    response = client.get("/status", headers=auth_headers)
     assert response.status_code == 200
     status_data = response.get_json()
-    assert status_data["state"] == "idle", \
+    assert status_data["state"] == "idle", (
         f"Expected initial state 'idle', got '{status_data['state']}'"
+    )
 
     # ACT 2: Start cook
-    response = client.post(
-        '/start-cook',
-        headers=auth_headers,
-        json=valid_cook_requests["chicken"]
-    )
-    assert response.status_code == 200, \
-        f"Start cook failed: {response.get_json()}"
+    response = client.post("/start-cook", headers=auth_headers, json=valid_cook_requests["chicken"])
+    assert response.status_code == 200, f"Start cook failed: {response.get_json()}"
 
     # ACT 3: Verify state transitioned to preheating or cooking
-    response = client.get('/status', headers=auth_headers)
+    response = client.get("/status", headers=auth_headers)
     assert response.status_code == 200
     status_data = response.get_json()
 
     # State should be preheating or cooking (device may heat up quickly)
-    assert status_data["state"] in ["preheating", "cooking"], \
+    assert status_data["state"] in ["preheating", "cooking"], (
         f"Expected 'preheating' or 'cooking', got '{status_data['state']}'"
+    )
 
     # Device should be running
-    assert status_data["is_running"] is True, \
-        "Device should be running after start cook"
+    assert status_data["is_running"] is True, "Device should be running after start cook"
 
 
 @responses.activate
@@ -134,7 +126,7 @@ def test_int_st_02_preheating_to_cooking(client, auth_headers):
         responses.POST,
         "https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword",
         json={"idToken": "mock-token", "refreshToken": "refresh", "expiresIn": "3600"},
-        status=200
+        status=200,
     )
 
     # Mock 1st status call: device is preheating
@@ -147,9 +139,9 @@ def test_int_st_02_preheating_to_cooking(client, auth_headers):
             "currentTemperature": 50.0,
             "targetTemperature": 65.0,
             "cookTimeRemaining": 5400,
-            "cookTimeElapsed": 300
+            "cookTimeElapsed": 300,
         },
-        status=200
+        status=200,
     )
 
     # Mock 2nd status call: device reached temp, now cooking
@@ -162,19 +154,19 @@ def test_int_st_02_preheating_to_cooking(client, auth_headers):
             "currentTemperature": 65.0,
             "targetTemperature": 65.0,
             "cookTimeRemaining": 5100,
-            "cookTimeElapsed": 600
+            "cookTimeElapsed": 600,
         },
-        status=200
+        status=200,
     )
 
     # ACT: Check status twice to see progression
-    response1 = client.get('/status', headers=auth_headers)
+    response1 = client.get("/status", headers=auth_headers)
     assert response1.status_code == 200
     status1 = response1.get_json()
     assert status1["state"] == "preheating"
     assert status1["current_temp_celsius"] < status1["target_temp_celsius"]
 
-    response2 = client.get('/status', headers=auth_headers)
+    response2 = client.get("/status", headers=auth_headers)
     assert response2.status_code == 200
     status2 = response2.get_json()
     assert status2["state"] == "cooking"
@@ -193,7 +185,7 @@ def test_int_st_03_cooking_to_done(client, auth_headers):
         responses.POST,
         "https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword",
         json={"idToken": "mock-token", "refreshToken": "refresh", "expiresIn": "3600"},
-        status=200
+        status=200,
     )
 
     # Mock 1st status: cooking with time remaining
@@ -206,9 +198,9 @@ def test_int_st_03_cooking_to_done(client, auth_headers):
             "currentTemperature": 65.0,
             "targetTemperature": 65.0,
             "cookTimeRemaining": 300,  # 5 minutes
-            "cookTimeElapsed": 5100
+            "cookTimeElapsed": 5100,
         },
-        status=200
+        status=200,
     )
 
     # Mock 2nd status: timer expired, done
@@ -221,18 +213,18 @@ def test_int_st_03_cooking_to_done(client, auth_headers):
             "currentTemperature": 65.0,
             "targetTemperature": 65.0,
             "cookTimeRemaining": 0,
-            "cookTimeElapsed": 5400
+            "cookTimeElapsed": 5400,
         },
-        status=200
+        status=200,
     )
 
     # ACT: Check progression
-    response1 = client.get('/status', headers=auth_headers)
+    response1 = client.get("/status", headers=auth_headers)
     assert response1.status_code == 200
     status1 = response1.get_json()
     assert status1["time_remaining_minutes"] == 5
 
-    response2 = client.get('/status', headers=auth_headers)
+    response2 = client.get("/status", headers=auth_headers)
     assert response2.status_code == 200
     status2 = response2.get_json()
     assert status2["state"] == "done"
@@ -252,7 +244,7 @@ def test_int_st_04_any_to_offline(client, auth_headers):
         responses.POST,
         "https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword",
         json={"idToken": "mock-token", "refreshToken": "refresh", "expiresIn": "3600"},
-        status=200
+        status=200,
     )
 
     # Mock 1st call: device online and cooking
@@ -265,9 +257,9 @@ def test_int_st_04_any_to_offline(client, auth_headers):
             "currentTemperature": 65.0,
             "targetTemperature": 65.0,
             "cookTimeRemaining": 3600,
-            "cookTimeElapsed": 1800
+            "cookTimeElapsed": 1800,
         },
-        status=200
+        status=200,
     )
 
     # Mock 2nd call: device offline (404)
@@ -275,17 +267,17 @@ def test_int_st_04_any_to_offline(client, auth_headers):
         responses.GET,
         "https://anovaculinary.io/api/v1/devices/test-device-123",
         json={"error": "Device offline"},
-        status=404
+        status=404,
     )
 
     # ACT: Check progression from online to offline
-    response1 = client.get('/status', headers=auth_headers)
+    response1 = client.get("/status", headers=auth_headers)
     assert response1.status_code == 200
     status1 = response1.get_json()
     assert status1["device_online"] is True
     assert status1["state"] == "cooking"
 
-    response2 = client.get('/status', headers=auth_headers)
+    response2 = client.get("/status", headers=auth_headers)
     # Device offline should return 503 with DEVICE_OFFLINE error
     assert response2.status_code == 503
     error_data = response2.get_json()
@@ -304,7 +296,7 @@ def test_int_st_05_cooking_to_idle(client, auth_headers):
         responses.POST,
         "https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword",
         json={"idToken": "mock-token", "refreshToken": "refresh", "expiresIn": "3600"},
-        status=200
+        status=200,
     )
 
     # Mock 1st status: device cooking
@@ -317,9 +309,9 @@ def test_int_st_05_cooking_to_idle(client, auth_headers):
             "currentTemperature": 65.0,
             "targetTemperature": 65.0,
             "cookTimeRemaining": 3600,
-            "cookTimeElapsed": 1800
+            "cookTimeElapsed": 1800,
         },
-        status=200
+        status=200,
     )
 
     # Mock status check inside stop_cook (checking if running)
@@ -332,9 +324,9 @@ def test_int_st_05_cooking_to_idle(client, auth_headers):
             "currentTemperature": 65.0,
             "targetTemperature": 65.0,
             "cookTimeRemaining": 3600,
-            "cookTimeElapsed": 1800
+            "cookTimeElapsed": 1800,
         },
-        status=200
+        status=200,
     )
 
     # Mock stop command succeeds
@@ -342,7 +334,7 @@ def test_int_st_05_cooking_to_idle(client, auth_headers):
         responses.POST,
         "https://anovaculinary.io/api/v1/devices/test-device-123/stop",
         json={"success": True, "state": "idle"},
-        status=200
+        status=200,
     )
 
     # Mock final status: device now idle
@@ -355,20 +347,20 @@ def test_int_st_05_cooking_to_idle(client, auth_headers):
             "currentTemperature": 65.0,
             "targetTemperature": None,
             "cookTimeRemaining": None,
-            "cookTimeElapsed": None
+            "cookTimeElapsed": None,
         },
-        status=200
+        status=200,
     )
 
     # ACT: Verify state transitions
-    response1 = client.get('/status', headers=auth_headers)
+    response1 = client.get("/status", headers=auth_headers)
     assert response1.status_code == 200
     assert response1.get_json()["state"] == "cooking"
 
-    response2 = client.post('/stop-cook', headers=auth_headers)
+    response2 = client.post("/stop-cook", headers=auth_headers)
     assert response2.status_code == 200
     assert response2.get_json()["device_state"] == "idle"
 
-    response3 = client.get('/status', headers=auth_headers)
+    response3 = client.get("/status", headers=auth_headers)
     assert response3.status_code == 200
     assert response3.get_json()["state"] == "idle"

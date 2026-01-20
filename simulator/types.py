@@ -19,6 +19,7 @@ class DeviceState(Enum):
 
     Reference: SIMULATOR-SPECIFICATION.md Section 4.1
     """
+
     IDLE = "IDLE"
     PREHEATING = "PREHEATING"
     COOKING = "COOKING"
@@ -27,12 +28,14 @@ class DeviceState(Enum):
 
 class TemperatureUnit(Enum):
     """Temperature unit selection."""
+
     CELSIUS = "C"
     FAHRENHEIT = "F"
 
 
 class ConnectionStatus(Enum):
     """Network connection status."""
+
     CONNECTED = "connected-station"
     DISCONNECTED = "disconnected"
     CONNECTING = "connecting"
@@ -45,6 +48,7 @@ class JobInfo:
 
     Maps to: payload.state.job in EVENT_APC_STATE
     """
+
     id: str = ""
     mode: str = "IDLE"
     target_temperature: float = 0.0
@@ -68,6 +72,7 @@ class JobStatus:
 
     Maps to: payload.state.job-status in EVENT_APC_STATE
     """
+
     state: DeviceState = DeviceState.IDLE
     cook_time_remaining: int = 0
     job_start_systick: int = 0
@@ -89,6 +94,7 @@ class TemperatureInfo:
 
     Maps to: payload.state.temperature-info in EVENT_APC_STATE
     """
+
     water_temperature: float = 22.0
     heater_temperature: float = 22.0
     triac_temperature: int = 25
@@ -108,6 +114,7 @@ class PinInfo:
 
     Maps to: payload.state.pin-info in EVENT_APC_STATE
     """
+
     device_safe: int = 1  # 1=safe, 0=error
     water_leak: int = 0
     water_level_low: int = 0
@@ -131,6 +138,7 @@ class NetworkInfo:
 
     Maps to: payload.state.network-info in EVENT_APC_STATE
     """
+
     connection_status: str = "connected-station"
     mac_address: str = "AA:BB:CC:DD:EE:FF"
     ssid: str = "SimulatorNetwork"
@@ -148,6 +156,7 @@ class NetworkInfo:
 @dataclass
 class HeaterControl:
     """Heater control state."""
+
     duty_cycle: float = 0.0
 
     def to_dict(self) -> dict[str, Any]:
@@ -157,6 +166,7 @@ class HeaterControl:
 @dataclass
 class MotorControl:
     """Motor (circulation pump) control state."""
+
     duty_cycle: float = 0.0
 
     def to_dict(self) -> dict[str, Any]:
@@ -166,6 +176,7 @@ class MotorControl:
 @dataclass
 class MotorInfo:
     """Motor information."""
+
     rpm: int = 0
 
     def to_dict(self) -> dict[str, Any]:
@@ -182,6 +193,7 @@ class CookerState:
 
     Reference: SIMULATOR-SPECIFICATION.md Section 3.4.1
     """
+
     # Device identification
     cooker_id: str = "anova sim-0000000000"
     device_type: str = "pro"
@@ -284,6 +296,7 @@ class SimulatorConfig:
 
     Reference: SIMULATOR-SPECIFICATION.md Section 10
     """
+
     # Server ports
     ws_port: int = 8765
     firebase_port: int = 8764

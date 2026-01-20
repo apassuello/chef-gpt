@@ -23,6 +23,7 @@ class AnovaServerError(Exception):
     All custom exceptions should inherit from this base class to allow
     for easy catching of all application-specific errors.
     """
+
     pass
 
 

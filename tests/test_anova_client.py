@@ -41,7 +41,7 @@ def mock_config():
         ANOVA_EMAIL="test@example.com",
         ANOVA_PASSWORD="test_password",
         DEVICE_ID="test_device_123",
-        API_KEY="test_api_key"
+        API_KEY="test_api_key",
     )
 
 
@@ -55,6 +55,7 @@ def firebase_api_key():
 # AUTHENTICATION TESTS
 # ==============================================================================
 
+
 @responses.activate
 def test_authentication_success(mock_config, firebase_api_key):
     """Test successful Firebase authentication."""
@@ -65,12 +66,12 @@ def test_authentication_success(mock_config, firebase_api_key):
         json={
             "idToken": "mock-access-token",
             "refreshToken": "mock-refresh-token",
-            "expiresIn": "3600"
+            "expiresIn": "3600",
         },
-        status=200
+        status=200,
     )
 
-    with patch.dict(os.environ, {'FIREBASE_API_KEY': firebase_api_key}):
+    with patch.dict(os.environ, {"FIREBASE_API_KEY": firebase_api_key}):
         client = AnovaClient(mock_config)
 
         # Verify tokens were stored
@@ -92,10 +93,10 @@ def test_authentication_invalid_credentials(mock_config, firebase_api_key):
         responses.POST,
         f"https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key={firebase_api_key}",
         json={"error": {"message": "INVALID_PASSWORD"}},
-        status=400
+        status=400,
     )
 
-    with patch.dict(os.environ, {'FIREBASE_API_KEY': firebase_api_key}):
+    with patch.dict(os.environ, {"FIREBASE_API_KEY": firebase_api_key}):
         with pytest.raises(AuthenticationError) as exc_info:
             AnovaClient(mock_config)
 
@@ -109,12 +110,8 @@ def test_token_refresh(mock_config, firebase_api_key):
     responses.add(
         responses.POST,
         f"https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key={firebase_api_key}",
-        json={
-            "idToken": "initial-token",
-            "refreshToken": "refresh-token",
-            "expiresIn": "3600"
-        },
-        status=200
+        json={"idToken": "initial-token", "refreshToken": "refresh-token", "expiresIn": "3600"},
+        status=200,
     )
 
     # Mock token refresh endpoint
@@ -124,9 +121,9 @@ def test_token_refresh(mock_config, firebase_api_key):
         json={
             "id_token": "new-access-token",
             "refresh_token": "new-refresh-token",
-            "expires_in": "3600"
+            "expires_in": "3600",
         },
-        status=200
+        status=200,
     )
 
     # Mock device status endpoint (to trigger token check)
@@ -137,12 +134,12 @@ def test_token_refresh(mock_config, firebase_api_key):
             "cookerId": "test_device_123",
             "cookerState": "idle",
             "currentTemperature": 20.0,
-            "targetTemperature": None
+            "targetTemperature": None,
         },
-        status=200
+        status=200,
     )
 
-    with patch.dict(os.environ, {'FIREBASE_API_KEY': firebase_api_key}):
+    with patch.dict(os.environ, {"FIREBASE_API_KEY": firebase_api_key}):
         client = AnovaClient(mock_config)
 
         # Manually set token to expired (in the past)
@@ -159,6 +156,7 @@ def test_token_refresh(mock_config, firebase_api_key):
 # START COOK TESTS
 # ==============================================================================
 
+
 @responses.activate
 def test_start_cook_success(mock_config, firebase_api_key):
     """Test successful cook start."""
@@ -166,38 +164,27 @@ def test_start_cook_success(mock_config, firebase_api_key):
     responses.add(
         responses.POST,
         f"https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key={firebase_api_key}",
-        json={
-            "idToken": "mock-token",
-            "refreshToken": "mock-refresh",
-            "expiresIn": "3600"
-        },
-        status=200
+        json={"idToken": "mock-token", "refreshToken": "mock-refresh", "expiresIn": "3600"},
+        status=200,
     )
 
     # Mock device status check (to ensure not already cooking)
     responses.add(
         responses.GET,
         "https://anovaculinary.io/api/v1/devices/test_device_123",
-        json={
-            "cookerId": "test_device_123",
-            "cookerState": "idle",
-            "currentTemperature": 20.0
-        },
-        status=200
+        json={"cookerId": "test_device_123", "cookerState": "idle", "currentTemperature": 20.0},
+        status=200,
     )
 
     # Mock Anova start cook
     responses.add(
         responses.POST,
         "https://anovaculinary.io/api/v1/devices/test_device_123/cook",
-        json={
-            "status": "started",
-            "cookId": "cook_123"
-        },
-        status=200
+        json={"status": "started", "cookId": "cook_123"},
+        status=200,
     )
 
-    with patch.dict(os.environ, {'FIREBASE_API_KEY': firebase_api_key}):
+    with patch.dict(os.environ, {"FIREBASE_API_KEY": firebase_api_key}):
         client = AnovaClient(mock_config)
         result = client.start_cook(temperature_c=65.0, time_minutes=90)
 
@@ -214,12 +201,8 @@ def test_start_cook_device_offline(mock_config, firebase_api_key):
     responses.add(
         responses.POST,
         f"https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key={firebase_api_key}",
-        json={
-            "idToken": "mock-token",
-            "refreshToken": "mock-refresh",
-            "expiresIn": "3600"
-        },
-        status=200
+        json={"idToken": "mock-token", "refreshToken": "mock-refresh", "expiresIn": "3600"},
+        status=200,
     )
 
     # Mock device status returning 404 (device not found/offline)
@@ -227,10 +210,10 @@ def test_start_cook_device_offline(mock_config, firebase_api_key):
         responses.GET,
         "https://anovaculinary.io/api/v1/devices/test_device_123",
         json={"error": "Device not found"},
-        status=404
+        status=404,
     )
 
-    with patch.dict(os.environ, {'FIREBASE_API_KEY': firebase_api_key}):
+    with patch.dict(os.environ, {"FIREBASE_API_KEY": firebase_api_key}):
         client = AnovaClient(mock_config)
 
         with pytest.raises(DeviceOfflineError):
@@ -244,12 +227,8 @@ def test_start_cook_device_busy(mock_config, firebase_api_key):
     responses.add(
         responses.POST,
         f"https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key={firebase_api_key}",
-        json={
-            "idToken": "mock-token",
-            "refreshToken": "mock-refresh",
-            "expiresIn": "3600"
-        },
-        status=200
+        json={"idToken": "mock-token", "refreshToken": "mock-refresh", "expiresIn": "3600"},
+        status=200,
     )
 
     # Mock device status showing is_running=True (cooking)
@@ -260,12 +239,12 @@ def test_start_cook_device_busy(mock_config, firebase_api_key):
             "cookerId": "test_device_123",
             "cookerState": "cooking",
             "currentTemperature": 64.5,
-            "targetTemperature": 65.0
+            "targetTemperature": 65.0,
         },
-        status=200
+        status=200,
     )
 
-    with patch.dict(os.environ, {'FIREBASE_API_KEY': firebase_api_key}):
+    with patch.dict(os.environ, {"FIREBASE_API_KEY": firebase_api_key}):
         client = AnovaClient(mock_config)
 
         with pytest.raises(DeviceBusyError) as exc_info:
@@ -278,6 +257,7 @@ def test_start_cook_device_busy(mock_config, firebase_api_key):
 # GET STATUS TESTS
 # ==============================================================================
 
+
 @responses.activate
 def test_get_status_success(mock_config, firebase_api_key):
     """Test successful status retrieval."""
@@ -285,12 +265,8 @@ def test_get_status_success(mock_config, firebase_api_key):
     responses.add(
         responses.POST,
         f"https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key={firebase_api_key}",
-        json={
-            "idToken": "mock-token",
-            "refreshToken": "mock-refresh",
-            "expiresIn": "3600"
-        },
-        status=200
+        json={"idToken": "mock-token", "refreshToken": "mock-refresh", "expiresIn": "3600"},
+        status=200,
     )
 
     # Mock Anova status endpoint
@@ -303,12 +279,12 @@ def test_get_status_success(mock_config, firebase_api_key):
             "currentTemperature": 64.8,
             "targetTemperature": 65.0,
             "cookTimeRemaining": 2820,  # 47 minutes in seconds
-            "cookTimeElapsed": 2580      # 43 minutes in seconds
+            "cookTimeElapsed": 2580,  # 43 minutes in seconds
         },
-        status=200
+        status=200,
     )
 
-    with patch.dict(os.environ, {'FIREBASE_API_KEY': firebase_api_key}):
+    with patch.dict(os.environ, {"FIREBASE_API_KEY": firebase_api_key}):
         client = AnovaClient(mock_config)
         status = client.get_status()
 
@@ -328,12 +304,8 @@ def test_get_status_device_offline(mock_config, firebase_api_key):
     responses.add(
         responses.POST,
         f"https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key={firebase_api_key}",
-        json={
-            "idToken": "mock-token",
-            "refreshToken": "mock-refresh",
-            "expiresIn": "3600"
-        },
-        status=200
+        json={"idToken": "mock-token", "refreshToken": "mock-refresh", "expiresIn": "3600"},
+        status=200,
     )
 
     # Mock status endpoint returning 404 (offline)
@@ -341,10 +313,10 @@ def test_get_status_device_offline(mock_config, firebase_api_key):
         responses.GET,
         "https://anovaculinary.io/api/v1/devices/test_device_123",
         json={"error": "Device offline"},
-        status=404
+        status=404,
     )
 
-    with patch.dict(os.environ, {'FIREBASE_API_KEY': firebase_api_key}):
+    with patch.dict(os.environ, {"FIREBASE_API_KEY": firebase_api_key}):
         client = AnovaClient(mock_config)
 
         with pytest.raises(DeviceOfflineError):
@@ -355,6 +327,7 @@ def test_get_status_device_offline(mock_config, firebase_api_key):
 # STOP COOK TESTS
 # ==============================================================================
 
+
 @responses.activate
 def test_stop_cook_success(mock_config, firebase_api_key):
     """Test successful cook stop."""
@@ -362,12 +335,8 @@ def test_stop_cook_success(mock_config, firebase_api_key):
     responses.add(
         responses.POST,
         f"https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key={firebase_api_key}",
-        json={
-            "idToken": "mock-token",
-            "refreshToken": "mock-refresh",
-            "expiresIn": "3600"
-        },
-        status=200
+        json={"idToken": "mock-token", "refreshToken": "mock-refresh", "expiresIn": "3600"},
+        status=200,
     )
 
     # Mock device status showing is_running=True
@@ -378,23 +347,20 @@ def test_stop_cook_success(mock_config, firebase_api_key):
             "cookerId": "test_device_123",
             "cookerState": "cooking",
             "currentTemperature": 64.9,
-            "targetTemperature": 65.0
+            "targetTemperature": 65.0,
         },
-        status=200
+        status=200,
     )
 
     # Mock Anova stop endpoint
     responses.add(
         responses.POST,
         "https://anovaculinary.io/api/v1/devices/test_device_123/stop",
-        json={
-            "status": "stopped",
-            "finalTemperature": 64.9
-        },
-        status=200
+        json={"status": "stopped", "finalTemperature": 64.9},
+        status=200,
     )
 
-    with patch.dict(os.environ, {'FIREBASE_API_KEY': firebase_api_key}):
+    with patch.dict(os.environ, {"FIREBASE_API_KEY": firebase_api_key}):
         client = AnovaClient(mock_config)
         result = client.stop_cook()
 
@@ -409,27 +375,19 @@ def test_stop_cook_no_active_cook(mock_config, firebase_api_key):
     responses.add(
         responses.POST,
         f"https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key={firebase_api_key}",
-        json={
-            "idToken": "mock-token",
-            "refreshToken": "mock-refresh",
-            "expiresIn": "3600"
-        },
-        status=200
+        json={"idToken": "mock-token", "refreshToken": "mock-refresh", "expiresIn": "3600"},
+        status=200,
     )
 
     # Mock device status showing is_running=False
     responses.add(
         responses.GET,
         "https://anovaculinary.io/api/v1/devices/test_device_123",
-        json={
-            "cookerId": "test_device_123",
-            "cookerState": "idle",
-            "currentTemperature": 20.0
-        },
-        status=200
+        json={"cookerId": "test_device_123", "cookerState": "idle", "currentTemperature": 20.0},
+        status=200,
     )
 
-    with patch.dict(os.environ, {'FIREBASE_API_KEY': firebase_api_key}):
+    with patch.dict(os.environ, {"FIREBASE_API_KEY": firebase_api_key}):
         client = AnovaClient(mock_config)
 
         with pytest.raises(NoActiveCookError) as exc_info:
@@ -442,6 +400,7 @@ def test_stop_cook_no_active_cook(mock_config, firebase_api_key):
 # TOKEN MANAGEMENT TESTS
 # ==============================================================================
 
+
 @responses.activate
 def test_token_expiry_calculation(mock_config, firebase_api_key):
     """Test token expiry is calculated correctly."""
@@ -452,12 +411,12 @@ def test_token_expiry_calculation(mock_config, firebase_api_key):
         json={
             "idToken": "mock-token",
             "refreshToken": "mock-refresh",
-            "expiresIn": "3600"  # 1 hour
+            "expiresIn": "3600",  # 1 hour
         },
-        status=200
+        status=200,
     )
 
-    with patch.dict(os.environ, {'FIREBASE_API_KEY': firebase_api_key}):
+    with patch.dict(os.environ, {"FIREBASE_API_KEY": firebase_api_key}):
         before_init = datetime.now()
         client = AnovaClient(mock_config)
         after_init = datetime.now()
@@ -476,12 +435,8 @@ def test_proactive_token_refresh(mock_config, firebase_api_key):
     responses.add(
         responses.POST,
         f"https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key={firebase_api_key}",
-        json={
-            "idToken": "initial-token",
-            "refreshToken": "refresh-token",
-            "expiresIn": "3600"
-        },
-        status=200
+        json={"idToken": "initial-token", "refreshToken": "refresh-token", "expiresIn": "3600"},
+        status=200,
     )
 
     # Mock token refresh
@@ -491,23 +446,20 @@ def test_proactive_token_refresh(mock_config, firebase_api_key):
         json={
             "id_token": "refreshed-token",
             "refresh_token": "new-refresh-token",
-            "expires_in": "3600"
+            "expires_in": "3600",
         },
-        status=200
+        status=200,
     )
 
     # Mock API call
     responses.add(
         responses.GET,
         "https://anovaculinary.io/api/v1/devices/test_device_123",
-        json={
-            "cookerId": "test_device_123",
-            "cookerState": "idle"
-        },
-        status=200
+        json={"cookerId": "test_device_123", "cookerState": "idle"},
+        status=200,
     )
 
-    with patch.dict(os.environ, {'FIREBASE_API_KEY': firebase_api_key}):
+    with patch.dict(os.environ, {"FIREBASE_API_KEY": firebase_api_key}):
         client = AnovaClient(mock_config)
 
         # Set token to expire in 4 minutes (within 5-min buffer)
@@ -525,8 +477,10 @@ def test_proactive_token_refresh(mock_config, firebase_api_key):
 # ERROR HANDLING TESTS
 # ==============================================================================
 
+
 def test_network_error_handling(mock_config, firebase_api_key):
     """Test handling of network errors."""
+
     # Mock auth endpoint with callback that raises connection error
     def connection_error_callback(request):
         raise requests.exceptions.ConnectionError("Network unreachable")
@@ -535,14 +489,17 @@ def test_network_error_handling(mock_config, firebase_api_key):
         rsps.add_callback(
             responses.POST,
             f"https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key={firebase_api_key}",
-            callback=connection_error_callback
+            callback=connection_error_callback,
         )
 
-        with patch.dict(os.environ, {'FIREBASE_API_KEY': firebase_api_key}):
+        with patch.dict(os.environ, {"FIREBASE_API_KEY": firebase_api_key}):
             with pytest.raises(AuthenticationError) as exc_info:
                 AnovaClient(mock_config)
 
-            assert "network" in str(exc_info.value).lower() or "connection" in str(exc_info.value).lower()
+            assert (
+                "network" in str(exc_info.value).lower()
+                or "connection" in str(exc_info.value).lower()
+            )
 
 
 @responses.activate
@@ -552,12 +509,8 @@ def test_api_error_handling(mock_config, firebase_api_key):
     responses.add(
         responses.POST,
         f"https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key={firebase_api_key}",
-        json={
-            "idToken": "mock-token",
-            "refreshToken": "mock-refresh",
-            "expiresIn": "3600"
-        },
-        status=200
+        json={"idToken": "mock-token", "refreshToken": "mock-refresh", "expiresIn": "3600"},
+        status=200,
     )
 
     # Mock Anova endpoint returning 500 error
@@ -565,10 +518,10 @@ def test_api_error_handling(mock_config, firebase_api_key):
         responses.GET,
         "https://anovaculinary.io/api/v1/devices/test_device_123",
         json={"error": "Internal server error"},
-        status=500
+        status=500,
     )
 
-    with patch.dict(os.environ, {'FIREBASE_API_KEY': firebase_api_key}):
+    with patch.dict(os.environ, {"FIREBASE_API_KEY": firebase_api_key}):
         client = AnovaClient(mock_config)
 
         with pytest.raises(AnovaAPIError) as exc_info:
@@ -580,6 +533,7 @@ def test_api_error_handling(mock_config, firebase_api_key):
 # ==============================================================================
 # SECURITY TESTS
 # ==============================================================================
+
 
 def test_tokens_not_logged(mock_config, firebase_api_key, caplog):
     """Test that tokens are never logged (security check)."""
@@ -593,12 +547,12 @@ def test_tokens_not_logged(mock_config, firebase_api_key, caplog):
             json={
                 "idToken": "SENSITIVE_ACCESS_TOKEN_12345",
                 "refreshToken": "SENSITIVE_REFRESH_TOKEN_67890",
-                "expiresIn": "3600"
+                "expiresIn": "3600",
             },
-            status=200
+            status=200,
         )
 
-        with patch.dict(os.environ, {'FIREBASE_API_KEY': firebase_api_key}):
+        with patch.dict(os.environ, {"FIREBASE_API_KEY": firebase_api_key}):
             with caplog.at_level("DEBUG"):
                 client = AnovaClient(mock_config)
 
@@ -615,21 +569,17 @@ def test_credentials_not_stored_in_memory(mock_config, firebase_api_key):
         rsps.add(
             responses.POST,
             f"https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key={firebase_api_key}",
-            json={
-                "idToken": "mock-token",
-                "refreshToken": "mock-refresh",
-                "expiresIn": "3600"
-            },
-            status=200
+            json={"idToken": "mock-token", "refreshToken": "mock-refresh", "expiresIn": "3600"},
+            status=200,
         )
 
-        with patch.dict(os.environ, {'FIREBASE_API_KEY': firebase_api_key}):
+        with patch.dict(os.environ, {"FIREBASE_API_KEY": firebase_api_key}):
             client = AnovaClient(mock_config)
 
             # Verify password is stored in config (needed for potential re-auth)
             # but not duplicated in client
-            assert not hasattr(client, 'password')
-            assert not hasattr(client, '_password')
+            assert not hasattr(client, "password")
+            assert not hasattr(client, "_password")
 
 
 # ==============================================================================

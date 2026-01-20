@@ -245,9 +245,7 @@ async def full_simulator(
 
 
 @pytest_asyncio.fixture
-async def ws_client(
-    simulator, simulator_config
-) -> AsyncGenerator:
+async def ws_client(simulator, simulator_config) -> AsyncGenerator:
     """
     Connected WebSocket client.
 
@@ -288,12 +286,14 @@ def control_url(simulator_config) -> str:
 @pytest.fixture
 def start_command():
     """Factory for CMD_APC_START messages."""
+
     def _make_command(
         temp: float = 65.0,
         timer: int = 3600,
         unit: str = "C",
     ) -> dict:
         from simulator.types import generate_request_id
+
         request_id = generate_request_id()
         return {
             "command": "CMD_APC_START",
@@ -307,14 +307,17 @@ def start_command():
                 "requestId": request_id,
             },
         }
+
     return _make_command
 
 
 @pytest.fixture
 def stop_command():
     """Factory for CMD_APC_STOP messages."""
+
     def _make_command() -> dict:
         from simulator.types import generate_request_id
+
         request_id = generate_request_id()
         return {
             "command": "CMD_APC_STOP",
@@ -323,4 +326,5 @@ def stop_command():
                 "cookerId": "anova sim-0000000000",
             },
         }
+
     return _make_command

@@ -116,11 +116,13 @@ class ControlAPI:
         try:
             self.simulator.reset()
 
-            return web.json_response({
-                "status": "reset",
-                "state": self.simulator.state.job_status.state.value,
-                "temperature": self.simulator.state.temperature_info.water_temperature,
-            })
+            return web.json_response(
+                {
+                    "status": "reset",
+                    "state": self.simulator.state.job_status.state.value,
+                    "temperature": self.simulator.state.temperature_info.water_temperature,
+                }
+            )
 
         except Exception as e:
             logger.error(f"Reset error: {e}")
@@ -160,15 +162,11 @@ class ControlAPI:
 
             # Update temperature
             if "temperature" in data:
-                self.simulator.state.temperature_info.water_temperature = float(
-                    data["temperature"]
-                )
+                self.simulator.state.temperature_info.water_temperature = float(data["temperature"])
 
             # Update target temperature
             if "target_temperature" in data:
-                self.simulator.state.job.target_temperature = float(
-                    data["target_temperature"]
-                )
+                self.simulator.state.job.target_temperature = float(data["target_temperature"])
 
             # Update timer
             if "timer" in data:
@@ -176,20 +174,20 @@ class ControlAPI:
 
             # Update timer remaining
             if "timer_remaining" in data:
-                self.simulator.state.job_status.cook_time_remaining = int(
-                    data["timer_remaining"]
-                )
+                self.simulator.state.job_status.cook_time_remaining = int(data["timer_remaining"])
 
             # Broadcast state update
             await self.simulator.ws_server._broadcast_state()
 
-            return web.json_response({
-                "status": "updated",
-                "state": self.simulator.state.job_status.state.value,
-                "temperature": self.simulator.state.temperature_info.water_temperature,
-                "target_temperature": self.simulator.state.job.target_temperature,
-                "timer_remaining": self.simulator.state.job_status.cook_time_remaining,
-            })
+            return web.json_response(
+                {
+                    "status": "updated",
+                    "state": self.simulator.state.job_status.state.value,
+                    "temperature": self.simulator.state.temperature_info.water_temperature,
+                    "target_temperature": self.simulator.state.job.target_temperature,
+                    "timer_remaining": self.simulator.state.job_status.cook_time_remaining,
+                }
+            )
 
         except json.JSONDecodeError:
             return self._error_response("INVALID_JSON", "Invalid JSON body", 400)
@@ -210,19 +208,19 @@ class ControlAPI:
 
             if offline:
                 # Disconnect all clients
-                await self.simulator.ws_server.disconnect_all(
-                    code=1006, reason="Device offline"
-                )
+                await self.simulator.ws_server.disconnect_all(code=1006, reason="Device offline")
                 self.simulator.state.online = False
                 logger.info("Simulator set to offline mode")
             else:
                 self.simulator.state.online = True
                 logger.info("Simulator set to online mode")
 
-            return web.json_response({
-                "status": "offline" if offline else "online",
-                "clients_disconnected": len(self.simulator.ws_server.clients) == 0,
-            })
+            return web.json_response(
+                {
+                    "status": "offline" if offline else "online",
+                    "clients_disconnected": len(self.simulator.ws_server.clients) == 0,
+                }
+            )
 
         except json.JSONDecodeError:
             return self._error_response("INVALID_JSON", "Invalid JSON body", 400)
@@ -242,9 +240,7 @@ class ControlAPI:
             time_scale = data.get("time_scale")
 
             if time_scale is None:
-                return self._error_response(
-                    "MISSING_TIME_SCALE", "time_scale is required", 400
-                )
+                return self._error_response("MISSING_TIME_SCALE", "time_scale is required", 400)
 
             time_scale = float(time_scale)
             if time_scale <= 0:
@@ -255,17 +251,17 @@ class ControlAPI:
             self.simulator.config.time_scale = time_scale
             logger.info(f"Time scale set to {time_scale}")
 
-            return web.json_response({
-                "status": "updated",
-                "time_scale": time_scale,
-            })
+            return web.json_response(
+                {
+                    "status": "updated",
+                    "time_scale": time_scale,
+                }
+            )
 
         except json.JSONDecodeError:
             return self._error_response("INVALID_JSON", "Invalid JSON body", 400)
         except ValueError:
-            return self._error_response(
-                "INVALID_TIME_SCALE", "time_scale must be a number", 400
-            )
+            return self._error_response("INVALID_TIME_SCALE", "time_scale must be a number", 400)
         except Exception as e:
             logger.error(f"Set time scale error: {e}")
             return self._error_response("SET_TIME_SCALE_FAILED", str(e), 500)
@@ -281,50 +277,52 @@ class ControlAPI:
         try:
             state = self.simulator.state
 
-            return web.json_response({
-                "cooker_id": state.cooker_id,
-                "device_type": state.device_type,
-                "firmware_version": state.firmware_version,
-                "online": state.online,
-                "job": {
-                    "id": state.job.id,
-                    "mode": state.job.mode,
-                    "target_temperature": state.job.target_temperature,
-                    "temperature_unit": state.job.temperature_unit.value,
-                    "cook_time_seconds": state.job.cook_time_seconds,
-                },
-                "job_status": {
-                    "state": state.job_status.state.value,
-                    "cook_time_remaining": state.job_status.cook_time_remaining,
-                },
-                "temperature_info": {
-                    "water_temperature": state.temperature_info.water_temperature,
-                    "heater_temperature": state.temperature_info.heater_temperature,
-                    "triac_temperature": state.temperature_info.triac_temperature,
-                },
-                "heater_control": {
-                    "duty_cycle": state.heater_control.duty_cycle,
-                },
-                "motor_control": {
-                    "duty_cycle": state.motor_control.duty_cycle,
-                },
-                "motor_info": {
-                    "rpm": state.motor_info.rpm,
-                },
-                "pin_info": {
-                    "device_safe": state.pin_info.device_safe,
-                    "water_leak": state.pin_info.water_leak,
-                    "water_level_low": state.pin_info.water_level_low,
-                    "water_level_critical": state.pin_info.water_level_critical,
-                    "motor_stuck": state.pin_info.motor_stuck,
-                },
-                "network_info": {
-                    "connection_status": state.network_info.connection_status,
-                    "mac_address": state.network_info.mac_address,
-                    "ssid": state.network_info.ssid,
-                },
-                "time_scale": self.simulator.config.time_scale,
-            })
+            return web.json_response(
+                {
+                    "cooker_id": state.cooker_id,
+                    "device_type": state.device_type,
+                    "firmware_version": state.firmware_version,
+                    "online": state.online,
+                    "job": {
+                        "id": state.job.id,
+                        "mode": state.job.mode,
+                        "target_temperature": state.job.target_temperature,
+                        "temperature_unit": state.job.temperature_unit.value,
+                        "cook_time_seconds": state.job.cook_time_seconds,
+                    },
+                    "job_status": {
+                        "state": state.job_status.state.value,
+                        "cook_time_remaining": state.job_status.cook_time_remaining,
+                    },
+                    "temperature_info": {
+                        "water_temperature": state.temperature_info.water_temperature,
+                        "heater_temperature": state.temperature_info.heater_temperature,
+                        "triac_temperature": state.temperature_info.triac_temperature,
+                    },
+                    "heater_control": {
+                        "duty_cycle": state.heater_control.duty_cycle,
+                    },
+                    "motor_control": {
+                        "duty_cycle": state.motor_control.duty_cycle,
+                    },
+                    "motor_info": {
+                        "rpm": state.motor_info.rpm,
+                    },
+                    "pin_info": {
+                        "device_safe": state.pin_info.device_safe,
+                        "water_leak": state.pin_info.water_leak,
+                        "water_level_low": state.pin_info.water_level_low,
+                        "water_level_critical": state.pin_info.water_level_critical,
+                        "motor_stuck": state.pin_info.motor_stuck,
+                    },
+                    "network_info": {
+                        "connection_status": state.network_info.connection_status,
+                        "mac_address": state.network_info.mac_address,
+                        "ssid": state.network_info.ssid,
+                    },
+                    "time_scale": self.simulator.config.time_scale,
+                }
+            )
 
         except Exception as e:
             logger.error(f"Get state error: {e}")
@@ -356,10 +354,12 @@ class ControlAPI:
             # Apply limit (most recent)
             messages = messages[-limit:]
 
-            return web.json_response({
-                "count": len(messages),
-                "messages": messages,
-            })
+            return web.json_response(
+                {
+                    "count": len(messages),
+                    "messages": messages,
+                }
+            )
 
         except ValueError:
             return self._error_response("INVALID_LIMIT", "limit must be a number", 400)
@@ -392,9 +392,7 @@ class ControlAPI:
             error_type_str = data.get("error_type")
 
             if not error_type_str:
-                return self._error_response(
-                    "MISSING_ERROR_TYPE", "error_type is required", 400
-                )
+                return self._error_response("MISSING_ERROR_TYPE", "error_type is required", 400)
 
             # Convert to ErrorType enum
             try:
@@ -420,10 +418,12 @@ class ControlAPI:
                 error_type, duration=duration, **kwargs
             )
 
-            return web.json_response({
-                "status": "triggered",
-                **result,
-            })
+            return web.json_response(
+                {
+                    "status": "triggered",
+                    **result,
+                }
+            )
 
         except json.JSONDecodeError:
             return self._error_response("INVALID_JSON", "Invalid JSON body", 400)
@@ -443,9 +443,7 @@ class ControlAPI:
             error_type_str = data.get("error_type")
 
             if not error_type_str:
-                return self._error_response(
-                    "MISSING_ERROR_TYPE", "error_type is required", 400
-                )
+                return self._error_response("MISSING_ERROR_TYPE", "error_type is required", 400)
 
             # Convert to ErrorType enum
             try:
@@ -461,10 +459,12 @@ class ControlAPI:
             # Clear the error
             result = await self.error_simulator.clear_error(error_type)
 
-            return web.json_response({
-                "status": "cleared",
-                **result,
-            })
+            return web.json_response(
+                {
+                    "status": "cleared",
+                    **result,
+                }
+            )
 
         except json.JSONDecodeError:
             return self._error_response("INVALID_JSON", "Invalid JSON body", 400)
@@ -496,10 +496,12 @@ class ControlAPI:
                     info["failure_rate"] = config.failure_rate
                 errors_info.append(info)
 
-            return web.json_response({
-                "active_errors": [e.value for e in active_errors],
-                "errors": errors_info,
-            })
+            return web.json_response(
+                {
+                    "active_errors": [e.value for e in active_errors],
+                    "errors": errors_info,
+                }
+            )
 
         except Exception as e:
             logger.error(f"Get errors failed: {e}")
@@ -507,16 +509,16 @@ class ControlAPI:
 
     async def _handle_health(self, request: web.Request) -> web.Response:
         """Health check endpoint."""
-        return web.json_response({
-            "status": "ok",
-            "service": "control-api",
-            "simulator_state": self.simulator.state.job_status.state.value,
-            "clients_connected": len(self.simulator.ws_server.clients),
-        })
+        return web.json_response(
+            {
+                "status": "ok",
+                "service": "control-api",
+                "simulator_state": self.simulator.state.job_status.state.value,
+                "clients_connected": len(self.simulator.ws_server.clients),
+            }
+        )
 
-    def _error_response(
-        self, error_code: str, message: str, status: int
-    ) -> web.Response:
+    def _error_response(self, error_code: str, message: str, status: int) -> web.Response:
         """Build error response."""
         return web.json_response(
             {

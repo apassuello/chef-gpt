@@ -27,6 +27,7 @@ class Config:
         SIM_COOKER_ID: Device identifier (default: anova sim-0000000000)
         SIM_LOG_LEVEL: Logging level (default: INFO)
     """
+
     # Server ports
     ws_port: int = 8765
     firebase_port: int = 8764
@@ -54,9 +55,11 @@ class Config:
     expired_tokens: list[str] = field(default_factory=lambda: ["expired-test-token"])
 
     # Firebase mock credentials (email -> password mapping)
-    firebase_credentials: dict = field(default_factory=lambda: {
-        "test@example.com": "testpassword123",
-    })
+    firebase_credentials: dict = field(
+        default_factory=lambda: {
+            "test@example.com": "testpassword123",
+        }
+    )
     token_expiry: int = 3600  # Token expiry in seconds
 
     # Validation
