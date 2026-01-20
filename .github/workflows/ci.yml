@@ -71,7 +71,7 @@ jobs:
             --cov=simulator \
             --cov-report=xml \
             --cov-report=term-missing \
-            --cov-fail-under=74
+            --cov-fail-under=75
 
       - name: Upload coverage reports to Codecov
         uses: codecov/codecov-action@v5
@@ -111,7 +111,7 @@ jobs:
             exit 1
           fi
           if [[ "${{ needs.test.result }}" != "success" ]]; then
-            echo "❌ Tests failed or coverage below 75%"
+            echo "❌ Tests failed or coverage below 76%"
             exit 1
           fi
           echo "✅ All checks passed!"

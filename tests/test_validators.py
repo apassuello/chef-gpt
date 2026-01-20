@@ -215,6 +215,86 @@ def test_is_ground_meat_false():
 
 
 # ==============================================================================
+# TYPE VALIDATION TESTS (EDGE CASES)
+# ==============================================================================
+
+
+def test_invalid_temperature_type_string():
+    """Test temperature as non-numeric string raises INVALID_TEMPERATURE."""
+    data = {"temperature_celsius": "not-a-number", "time_minutes": 90}
+    with pytest.raises(ValidationError) as exc_info:
+        validate_start_cook(data)
+    assert exc_info.value.error_code == "INVALID_TEMPERATURE"
+    assert "must be a number" in exc_info.value.message
+
+
+def test_invalid_temperature_type_none():
+    """Test temperature as None raises INVALID_TEMPERATURE."""
+    data = {"temperature_celsius": None, "time_minutes": 90}
+    with pytest.raises(ValidationError) as exc_info:
+        validate_start_cook(data)
+    assert exc_info.value.error_code == "INVALID_TEMPERATURE"
+    assert "must be a number" in exc_info.value.message
+
+
+def test_invalid_time_type_string():
+    """Test time as non-numeric string raises INVALID_TIME."""
+    data = {"temperature_celsius": 65.0, "time_minutes": "not-a-number"}
+    with pytest.raises(ValidationError) as exc_info:
+        validate_start_cook(data)
+    assert exc_info.value.error_code == "INVALID_TIME"
+    assert "must be a number" in exc_info.value.message
+
+
+def test_invalid_time_type_none():
+    """Test time as None raises INVALID_TIME."""
+    data = {"temperature_celsius": 65.0, "time_minutes": None}
+    with pytest.raises(ValidationError) as exc_info:
+        validate_start_cook(data)
+    assert exc_info.value.error_code == "INVALID_TIME"
+    assert "must be a number" in exc_info.value.message
+
+
+def test_food_type_too_long():
+    """Test food_type longer than 100 characters raises FOOD_TYPE_TOO_LONG."""
+    long_food_type = "a" * 101  # 101 characters
+    data = {
+        "temperature_celsius": 65.0,
+        "time_minutes": 90,
+        "food_type": long_food_type,
+    }
+    with pytest.raises(ValidationError) as exc_info:
+        validate_start_cook(data)
+    assert exc_info.value.error_code == "FOOD_TYPE_TOO_LONG"
+    assert "100 characters or less" in exc_info.value.message
+
+
+def test_food_type_with_null_byte():
+    """Test food_type with null byte raises INVALID_FOOD_TYPE."""
+    data = {
+        "temperature_celsius": 65.0,
+        "time_minutes": 90,
+        "food_type": "chicken\x00breast",  # Null byte in the middle
+    }
+    with pytest.raises(ValidationError) as exc_info:
+        validate_start_cook(data)
+    assert exc_info.value.error_code == "INVALID_FOOD_TYPE"
+    assert "null bytes" in exc_info.value.message.lower()
+
+
+def test_food_type_exactly_100_characters():
+    """Test food_type with exactly 100 characters is valid."""
+    food_type_100 = "a" * 100  # Exactly 100 characters
+    data = {
+        "temperature_celsius": 65.0,
+        "time_minutes": 90,
+        "food_type": food_type_100,
+    }
+    result = validate_start_cook(data)
+    assert result["food_type"] == food_type_100
+
+
+# ==============================================================================
 # IMPLEMENTATION NOTES
 # ==============================================================================
 # Test implementation checklist:

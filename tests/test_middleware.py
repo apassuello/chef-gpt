@@ -173,6 +173,27 @@ def test_require_api_key_constant_time_comparison():
     assert ratio < 1.5, f"Timing attack vulnerability detected: {ratio:.2f}x difference"
 
 
+def test_require_api_key_no_key_configured():
+    """TC-MW-06: Request succeeds when no API key is configured (dev mode)."""
+    app = Flask(__name__)
+    # Don't set API_KEY in config
+
+    @app.route("/test")
+    @require_api_key
+    def test_route():
+        return {"message": "success"}
+
+    client = app.test_client()
+
+    # Request WITH auth header should succeed when no API key configured
+    # (dev mode allows any key when no key is set)
+    headers = {"Authorization": "Bearer any-key"}
+    response = client.get("/test", headers=headers)
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data["message"] == "success"
+
+
 # ==============================================================================
 # LOGGING TESTS
 # ==============================================================================
