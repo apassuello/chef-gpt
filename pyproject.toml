@@ -109,6 +109,8 @@ markers = [
 [tool.coverage.run]
 source = ["server", "simulator"]
 branch = true
+# Required for CI coverage comment action to work with paths
+relative_files = true
 omit = [
     "*/tests/*",
     "*/__pycache__/*",
