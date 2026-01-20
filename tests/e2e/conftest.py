@@ -15,7 +15,7 @@ Reference: Plan Phase 2 - E2E Test Infrastructure
 import asyncio
 import threading
 import time
-from collections.abc import AsyncGenerator, Generator
+from collections.abc import AsyncGenerator
 from typing import Any
 
 import pytest
@@ -30,7 +30,6 @@ from server.routes import api
 from simulator.config import Config as SimConfig
 from simulator.control_api import ControlAPI
 from simulator.server import AnovaSimulator
-
 
 # =============================================================================
 # PORT MANAGEMENT

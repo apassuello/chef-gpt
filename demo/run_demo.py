@@ -20,7 +20,6 @@ import asyncio
 import signal
 import sys
 import time
-from datetime import datetime
 
 import requests
 
@@ -106,8 +105,8 @@ class DemoRunner:
 
     async def _start_flask_server(self):
         """Start Flask server as subprocess."""
-        import subprocess
         import os
+        import subprocess
 
         env = os.environ.copy()
         env["PERSONAL_ACCESS_TOKEN"] = "demo-token"
@@ -213,7 +212,7 @@ app.run(host="127.0.0.1", port={self.flask_port}, debug=False, use_reloader=Fals
         except Exception:
             print(f"[API] Response: {response.status_code}")
 
-    async def run_scenario(self, scenario: CookScenario):
+    async def run_scenario(self, scenario: CookScenario):  # noqa: PLR0915
         """
         Run a complete cooking scenario.
 
@@ -287,7 +286,7 @@ app.run(host="127.0.0.1", port={self.flask_port}, debug=False, use_reloader=Fals
                 print(f"[STATUS] Preheating... {current_temp:.1f}°C → {target_temp}°C")
             elif state == "cooking":
                 if last_state != "cooking":
-                    print(f"[STATUS] Reached target! Starting timer...")
+                    print("[STATUS] Reached target! Starting timer...")
                 if time_remaining is not None:
                     print(f"[STATUS] Cooking... Time remaining: {time_remaining} min | Temp: {current_temp:.1f}°C")
                 else:
@@ -320,7 +319,7 @@ app.run(host="127.0.0.1", port={self.flask_port}, debug=False, use_reloader=Fals
         print(f"Expected result: {scenario.expected_result}")
         print("=" * 70)
 
-    async def interactive_mode(self):
+    async def interactive_mode(self):  # noqa: PLR0915
         """Run in interactive mode with user commands."""
         print("=" * 70)
         print("INTERACTIVE MODE")
@@ -343,7 +342,7 @@ app.run(host="127.0.0.1", port={self.flask_port}, debug=False, use_reloader=Fals
                 if not cmd:
                     continue
 
-                if cmd == "quit" or cmd == "exit":
+                if cmd in {"quit", "exit"}:
                     break
 
                 elif cmd == "status":

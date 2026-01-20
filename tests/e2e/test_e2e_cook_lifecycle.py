@@ -16,11 +16,8 @@ Reference: Plan Phase 2 - E2E Test Files
 """
 
 import asyncio
-import time
 
 import pytest
-
-from simulator.types import DeviceState
 
 
 @pytest.mark.asyncio
