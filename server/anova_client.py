@@ -29,7 +29,6 @@ import logging
 import queue
 import threading
 import uuid
-from datetime import datetime, timedelta
 from typing import Any
 
 import websockets
@@ -287,7 +286,11 @@ class AnovaWebSocketClient:
                         # Status update event
                         self._handle_status_update(data)
 
-                    elif command == "RESPONSE" or command.startswith("RESPONSE_") or command.startswith("CMD_"):
+                    elif (
+                        command == "RESPONSE"
+                        or command.startswith("RESPONSE_")
+                        or command.startswith("CMD_")
+                    ):
                         # Route response to correct caller using requestId
                         # Simulator sends "RESPONSE", real API might send "RESPONSE_*" or echo "CMD_*"
                         request_id = data.get("requestId")
@@ -414,9 +417,7 @@ class AnovaWebSocketClient:
                 # Extract job fields (target temperature, cook time)
                 job = state_data.get("job", {})
                 if "target-temperature" in job:
-                    self.device_status[cooker_id]["targetTemperature"] = job[
-                        "target-temperature"
-                    ]
+                    self.device_status[cooker_id]["targetTemperature"] = job["target-temperature"]
 
                 # Extract temperature-info fields (current water temperature)
                 temp_info = state_data.get("temperature-info", {})

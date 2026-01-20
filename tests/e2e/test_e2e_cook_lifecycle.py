@@ -89,7 +89,9 @@ class TestCookLifecycle:
                 break
 
         # 5. Verify cook completed
-        assert data["state"] == "done", f"Cook did not complete in time. Last state: {data['state']}"
+        assert data["state"] == "done", (
+            f"Cook did not complete in time. Last state: {data['state']}"
+        )
         assert data["target_temp_celsius"] == 65.0
 
     async def test_e2e_02_start_and_stop_midway(
@@ -326,10 +328,10 @@ class TestHealthEndpoint:
         assert client is not None, "ANOVA_CLIENT not configured in Flask app"
         assert client.connected.is_set(), "WebSocket not connected"
         assert client.device_discovered.is_set(), "Device list not received"
-        assert len(client.devices) > 0, f"No devices discovered (expected >= 1)"
+        assert len(client.devices) > 0, "No devices discovered (expected >= 1)"
         assert client.selected_device is not None, "No device auto-selected"
 
-        print(f"✓ WebSocket client ready:")
+        print("✓ WebSocket client ready:")
         print(f"  - Connected: {client.connected.is_set()}")
         print(f"  - Devices: {len(client.devices)}")
         print(f"  - Selected: {client.selected_device}")

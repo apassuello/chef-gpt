@@ -22,15 +22,14 @@ import pytest
 from flask import Flask
 from flask.testing import FlaskClient
 
-logger = logging.getLogger(__name__)
-
 from server.anova_client import AnovaWebSocketClient
 from server.config import Config
 from server.middleware import register_error_handlers, setup_request_logging
 from server.routes import api
 from simulator.config import Config as SimConfig
-from simulator.control_api import ControlAPI
 from simulator.server import AnovaSimulator
+
+logger = logging.getLogger(__name__)
 
 # =============================================================================
 # PORT MANAGEMENT
@@ -282,10 +281,7 @@ def e2e_app(e2e_simulator, e2e_server_config):
             f"  Hint: Check simulator logs for connection errors"
         )
 
-    logger.info(
-        f"E2E app ready: device={client.selected_device}, "
-        f"devices={len(client.devices)}"
-    )
+    logger.info(f"E2E app ready: device={client.selected_device}, devices={len(client.devices)}")
 
     yield app
 

@@ -28,7 +28,6 @@ from simulator.firebase_mock import FirebaseMock
 from simulator.server import AnovaSimulator
 from simulator.types import CookerState, DeviceState, SimulatorConfig
 
-
 # =============================================================================
 # HELPER FUNCTIONS
 # =============================================================================
@@ -54,6 +53,7 @@ async def consume_initial_messages(ws):
     """
     await ws.recv()  # Device list
     await ws.recv()  # Initial state
+
 
 # =============================================================================
 # PORT MANAGEMENT
