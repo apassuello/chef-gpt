@@ -15,127 +15,133 @@ Reference: tests/mocks/anova_responses.py for mock data
 
 import pytest
 import responses
+
 from tests.mocks.anova_responses import (
-    FIREBASE_AUTH_URL,
-    FIREBASE_REFRESH_URL,
-    FIREBASE_AUTH_SUCCESS,
-    FIREBASE_TOKEN_REFRESH_SUCCESS,
-    FIREBASE_TOKEN_EXPIRED,
-    DEVICE_STATUS_IDLE,
-    DEVICE_STATUS_PREHEATING,
     DEVICE_STATUS_COOKING,
     DEVICE_STATUS_COOKING_ALMOST_DONE,
     DEVICE_STATUS_DONE,
+    DEVICE_STATUS_IDLE,
     DEVICE_STATUS_OFFLINE_404,
-    DEVICE_STATUS_OFFLINE_FALSE,
-    START_COOK_SUCCESS,
+    DEVICE_STATUS_PREHEATING,
+    FIREBASE_AUTH_SUCCESS,
+    FIREBASE_AUTH_URL,
+    FIREBASE_REFRESH_URL,
+    FIREBASE_TOKEN_EXPIRED,
+    FIREBASE_TOKEN_REFRESH_SUCCESS,
     START_COOK_ALREADY_COOKING,
     START_COOK_DEVICE_OFFLINE,
-    STOP_COOK_SUCCESS,
+    START_COOK_SUCCESS,
     STOP_COOK_NOT_COOKING,
-    ERROR_UNAUTHORIZED,
+    STOP_COOK_SUCCESS,
     anova_device_url,
 )
-
 
 # ==============================================================================
 # ATOMIC MOCK FIXTURES (Building blocks)
 # ==============================================================================
 
+
 @pytest.fixture
 def mock_firebase_auth_success():
     """Mock successful Firebase authentication."""
+
     def _add_mock():
-        responses.add(
-            responses.POST,
-            FIREBASE_AUTH_URL,
-            json=FIREBASE_AUTH_SUCCESS,
-            status=200
-        )
+        responses.add(responses.POST, FIREBASE_AUTH_URL, json=FIREBASE_AUTH_SUCCESS, status=200)
+
     return _add_mock
 
 
 @pytest.fixture
 def mock_firebase_token_refresh():
     """Mock successful token refresh."""
+
     def _add_mock():
         responses.add(
-            responses.POST,
-            FIREBASE_REFRESH_URL,
-            json=FIREBASE_TOKEN_REFRESH_SUCCESS,
-            status=200
+            responses.POST, FIREBASE_REFRESH_URL, json=FIREBASE_TOKEN_REFRESH_SUCCESS, status=200
         )
+
     return _add_mock
 
 
 @pytest.fixture
 def mock_device_status_idle():
     """Mock device in idle state."""
+
     def _add_mock():
         responses.add(
             responses.GET,
             anova_device_url("test-device-123", "status"),
             json=DEVICE_STATUS_IDLE,
-            status=200
+            status=200,
         )
+
     return _add_mock
 
 
 @pytest.fixture
 def mock_device_status_preheating():
     """Mock device in preheating state."""
+
     def _add_mock():
         responses.add(
             responses.GET,
             anova_device_url("test-device-123", "status"),
             json=DEVICE_STATUS_PREHEATING,
-            status=200
+            status=200,
         )
+
     return _add_mock
 
 
 @pytest.fixture
 def mock_device_status_cooking():
     """Mock device in cooking state."""
+
     def _add_mock():
         responses.add(
             responses.GET,
             anova_device_url("test-device-123", "status"),
             json=DEVICE_STATUS_COOKING,
-            status=200
+            status=200,
         )
+
     return _add_mock
 
 
 @pytest.fixture
 def mock_device_start_cook_success():
     """Mock successful start cook command."""
+
     def _add_mock():
         responses.add(
             responses.POST,
             anova_device_url("test-device-123", "start"),
             json=START_COOK_SUCCESS,
-            status=200
+            status=200,
         )
+
     return _add_mock
 
 
 @pytest.fixture
 def mock_device_stop_cook_success():
     """Mock successful stop cook command."""
+
     def _add_mock():
         responses.add(
             responses.POST,
             anova_device_url("test-device-123", "stop"),
             json=STOP_COOK_SUCCESS,
-            status=200
+            status=200,
         )
+
     return _add_mock
 
 
 # ==============================================================================
 # COMPOSITE MOCK FIXTURES (Complete scenarios)
 # ==============================================================================
+
 
 @pytest.fixture
 def mock_anova_api_success():
@@ -150,22 +156,18 @@ def mock_anova_api_success():
 
     Use for: Happy path integration tests (INT-01)
     """
+
     @responses.activate
     def _mock():
         # Firebase auth
-        responses.add(
-            responses.POST,
-            FIREBASE_AUTH_URL,
-            json=FIREBASE_AUTH_SUCCESS,
-            status=200
-        )
+        responses.add(responses.POST, FIREBASE_AUTH_URL, json=FIREBASE_AUTH_SUCCESS, status=200)
 
         # Device idle
         responses.add(
             responses.GET,
             anova_device_url("test-device-123", "status"),
             json=DEVICE_STATUS_IDLE,
-            status=200
+            status=200,
         )
 
         # Device status after start (cooking)
@@ -173,7 +175,7 @@ def mock_anova_api_success():
             responses.GET,
             anova_device_url("test-device-123", "status"),
             json=DEVICE_STATUS_COOKING,
-            status=200
+            status=200,
         )
 
         # Start cook success
@@ -181,7 +183,7 @@ def mock_anova_api_success():
             responses.POST,
             anova_device_url("test-device-123", "start"),
             json=START_COOK_SUCCESS,
-            status=200
+            status=200,
         )
 
         # Stop cook success
@@ -189,7 +191,7 @@ def mock_anova_api_success():
             responses.POST,
             anova_device_url("test-device-123", "stop"),
             json=STOP_COOK_SUCCESS,
-            status=200
+            status=200,
         )
 
         # Device idle after stop
@@ -197,7 +199,7 @@ def mock_anova_api_success():
             responses.GET,
             anova_device_url("test-device-123", "status"),
             json=DEVICE_STATUS_IDLE,
-            status=200
+            status=200,
         )
 
     return _mock
@@ -214,22 +216,18 @@ def mock_anova_api_offline():
 
     Use for: Device offline tests (INT-03, INT-ST-04)
     """
+
     @responses.activate
     def _mock():
         # Firebase auth still works
-        responses.add(
-            responses.POST,
-            FIREBASE_AUTH_URL,
-            json=FIREBASE_AUTH_SUCCESS,
-            status=200
-        )
+        responses.add(responses.POST, FIREBASE_AUTH_URL, json=FIREBASE_AUTH_SUCCESS, status=200)
 
         # Device offline
         responses.add(
             responses.GET,
             anova_device_url("test-device-123", "status"),
             json=DEVICE_STATUS_OFFLINE_404,
-            status=404
+            status=404,
         )
 
         # Start cook also fails
@@ -237,7 +235,7 @@ def mock_anova_api_offline():
             responses.POST,
             anova_device_url("test-device-123", "start"),
             json=START_COOK_DEVICE_OFFLINE,
-            status=503
+            status=503,
         )
 
     return _mock
@@ -255,22 +253,18 @@ def mock_anova_api_busy():
 
     Use for: Device busy tests (INT-04)
     """
+
     @responses.activate
     def _mock():
         # Firebase auth succeeds
-        responses.add(
-            responses.POST,
-            FIREBASE_AUTH_URL,
-            json=FIREBASE_AUTH_SUCCESS,
-            status=200
-        )
+        responses.add(responses.POST, FIREBASE_AUTH_URL, json=FIREBASE_AUTH_SUCCESS, status=200)
 
         # Device status shows cooking
         responses.add(
             responses.GET,
             anova_device_url("test-device-123", "status"),
             json=DEVICE_STATUS_COOKING,
-            status=200
+            status=200,
         )
 
         # Start cook rejected
@@ -278,7 +272,7 @@ def mock_anova_api_busy():
             responses.POST,
             anova_device_url("test-device-123", "start"),
             json=START_COOK_ALREADY_COOKING,
-            status=409
+            status=409,
         )
 
     return _mock
@@ -296,22 +290,18 @@ def mock_anova_api_stop_without_cook():
 
     Use for: Edge case tests (INT-06)
     """
+
     @responses.activate
     def _mock():
         # Firebase auth
-        responses.add(
-            responses.POST,
-            FIREBASE_AUTH_URL,
-            json=FIREBASE_AUTH_SUCCESS,
-            status=200
-        )
+        responses.add(responses.POST, FIREBASE_AUTH_URL, json=FIREBASE_AUTH_SUCCESS, status=200)
 
         # Device idle
         responses.add(
             responses.GET,
             anova_device_url("test-device-123", "status"),
             json=DEVICE_STATUS_IDLE,
-            status=200
+            status=200,
         )
 
         # Stop rejected (no active cook)
@@ -319,7 +309,7 @@ def mock_anova_api_stop_without_cook():
             responses.POST,
             anova_device_url("test-device-123", "stop"),
             json=STOP_COOK_NOT_COOKING,
-            status=409
+            status=409,
         )
 
     return _mock
@@ -338,6 +328,7 @@ def mock_token_expired_then_refreshed():
 
     Use for: Token refresh tests (INT-07)
     """
+
     @responses.activate
     def _mock():
         # Initial auth (token will expire)
@@ -345,7 +336,7 @@ def mock_token_expired_then_refreshed():
             responses.POST,
             FIREBASE_AUTH_URL,
             json={**FIREBASE_AUTH_SUCCESS, "expiresIn": "0"},  # Expired immediately
-            status=200
+            status=200,
         )
 
         # First API call fails (token expired)
@@ -353,15 +344,12 @@ def mock_token_expired_then_refreshed():
             responses.POST,
             anova_device_url("test-device-123", "start"),
             json=FIREBASE_TOKEN_EXPIRED,
-            status=401
+            status=401,
         )
 
         # Token refresh succeeds
         responses.add(
-            responses.POST,
-            FIREBASE_REFRESH_URL,
-            json=FIREBASE_TOKEN_REFRESH_SUCCESS,
-            status=200
+            responses.POST, FIREBASE_REFRESH_URL, json=FIREBASE_TOKEN_REFRESH_SUCCESS, status=200
         )
 
         # Retry succeeds
@@ -369,7 +357,7 @@ def mock_token_expired_then_refreshed():
             responses.POST,
             anova_device_url("test-device-123", "start"),
             json=START_COOK_SUCCESS,
-            status=200
+            status=200,
         )
 
     return _mock
@@ -388,22 +376,18 @@ def mock_state_progression_idle_to_cooking():
 
     Use for: State transition tests (INT-ST-01, INT-ST-02)
     """
+
     @responses.activate
     def _mock():
         # Firebase auth
-        responses.add(
-            responses.POST,
-            FIREBASE_AUTH_URL,
-            json=FIREBASE_AUTH_SUCCESS,
-            status=200
-        )
+        responses.add(responses.POST, FIREBASE_AUTH_URL, json=FIREBASE_AUTH_SUCCESS, status=200)
 
         # First status: idle
         responses.add(
             responses.GET,
             anova_device_url("test-device-123", "status"),
             json=DEVICE_STATUS_IDLE,
-            status=200
+            status=200,
         )
 
         # Start cook command
@@ -411,7 +395,7 @@ def mock_state_progression_idle_to_cooking():
             responses.POST,
             anova_device_url("test-device-123", "start"),
             json=START_COOK_SUCCESS,
-            status=200
+            status=200,
         )
 
         # Second status: preheating
@@ -419,7 +403,7 @@ def mock_state_progression_idle_to_cooking():
             responses.GET,
             anova_device_url("test-device-123", "status"),
             json=DEVICE_STATUS_PREHEATING,
-            status=200
+            status=200,
         )
 
         # Third status: cooking (reached temp)
@@ -427,7 +411,7 @@ def mock_state_progression_idle_to_cooking():
             responses.GET,
             anova_device_url("test-device-123", "status"),
             json=DEVICE_STATUS_COOKING,
-            status=200
+            status=200,
         )
 
     return _mock
@@ -444,22 +428,18 @@ def mock_state_progression_cooking_to_done():
 
     Use for: State transition tests (INT-ST-03)
     """
+
     @responses.activate
     def _mock():
         # Firebase auth
-        responses.add(
-            responses.POST,
-            FIREBASE_AUTH_URL,
-            json=FIREBASE_AUTH_SUCCESS,
-            status=200
-        )
+        responses.add(responses.POST, FIREBASE_AUTH_URL, json=FIREBASE_AUTH_SUCCESS, status=200)
 
         # First status: cooking with time remaining
         responses.add(
             responses.GET,
             anova_device_url("test-device-123", "status"),
             json=DEVICE_STATUS_COOKING_ALMOST_DONE,
-            status=200
+            status=200,
         )
 
         # Second status: done
@@ -467,7 +447,7 @@ def mock_state_progression_cooking_to_done():
             responses.GET,
             anova_device_url("test-device-123", "status"),
             json=DEVICE_STATUS_DONE,
-            status=200
+            status=200,
         )
 
     return _mock
@@ -485,22 +465,18 @@ def mock_state_progression_cooking_to_idle():
 
     Use for: State transition tests (INT-ST-05)
     """
+
     @responses.activate
     def _mock():
         # Firebase auth
-        responses.add(
-            responses.POST,
-            FIREBASE_AUTH_URL,
-            json=FIREBASE_AUTH_SUCCESS,
-            status=200
-        )
+        responses.add(responses.POST, FIREBASE_AUTH_URL, json=FIREBASE_AUTH_SUCCESS, status=200)
 
         # First status: cooking
         responses.add(
             responses.GET,
             anova_device_url("test-device-123", "status"),
             json=DEVICE_STATUS_COOKING,
-            status=200
+            status=200,
         )
 
         # Stop cook
@@ -508,7 +484,7 @@ def mock_state_progression_cooking_to_idle():
             responses.POST,
             anova_device_url("test-device-123", "stop"),
             json=STOP_COOK_SUCCESS,
-            status=200
+            status=200,
         )
 
         # Second status: idle
@@ -516,7 +492,7 @@ def mock_state_progression_cooking_to_idle():
             responses.GET,
             anova_device_url("test-device-123", "status"),
             json=DEVICE_STATUS_IDLE,
-            status=200
+            status=200,
         )
 
     return _mock
@@ -533,22 +509,18 @@ def mock_connection_lost_during_cook():
 
     Use for: State transition tests (INT-ST-04)
     """
+
     @responses.activate
     def _mock():
         # Firebase auth
-        responses.add(
-            responses.POST,
-            FIREBASE_AUTH_URL,
-            json=FIREBASE_AUTH_SUCCESS,
-            status=200
-        )
+        responses.add(responses.POST, FIREBASE_AUTH_URL, json=FIREBASE_AUTH_SUCCESS, status=200)
 
         # First status: cooking
         responses.add(
             responses.GET,
             anova_device_url("test-device-123", "status"),
             json=DEVICE_STATUS_COOKING,
-            status=200
+            status=200,
         )
 
         # Second status: offline
@@ -556,7 +528,7 @@ def mock_connection_lost_during_cook():
             responses.GET,
             anova_device_url("test-device-123", "status"),
             json=DEVICE_STATUS_OFFLINE_404,
-            status=404
+            status=404,
         )
 
     return _mock

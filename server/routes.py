@@ -15,27 +15,27 @@ Reference: docs/05-api-specification.md
 """
 
 import logging
-from flask import Blueprint, request, jsonify, current_app
-from typing import Dict, Any, Tuple
+from datetime import UTC
+from typing import Any
+
+from flask import Blueprint, current_app, jsonify, request
 
 from .middleware import require_api_key
 from .validators import validate_start_cook
-from .anova_client import AnovaClient
-from .config import Config
-from .exceptions import ValidationError, AnovaAPIError
 
 logger = logging.getLogger(__name__)
 
 # Create Blueprint for API routes
-api = Blueprint('api', __name__)
+api = Blueprint("api", __name__)
 
 
 # ==============================================================================
 # HEALTH CHECK ENDPOINT
 # ==============================================================================
 
-@api.route('/health', methods=['GET'])
-def health() -> Tuple[Dict[str, Any], int]:
+
+@api.route("/health", methods=["GET"])
+def health() -> tuple[dict[str, Any], int]:
     """
     Health check endpoint.
 
@@ -57,22 +57,25 @@ def health() -> Tuple[Dict[str, Any], int]:
     Reference: CLAUDE.md Section "API Endpoints Reference > GET /health" (lines 1028-1039)
     Reference: docs/05-api-specification.md lines 278-302
     """
-    from datetime import datetime, timezone
+    from datetime import datetime
 
-    return jsonify({
-        "status": "ok",
-        "version": "1.0.0",
-        "timestamp": datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z')
-    }), 200
+    return jsonify(
+        {
+            "status": "ok",
+            "version": "1.0.0",
+            "timestamp": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
+        }
+    ), 200
 
 
 # ==============================================================================
 # COOKING CONTROL ENDPOINTS
 # ==============================================================================
 
-@api.route('/start-cook', methods=['POST'])
+
+@api.route("/start-cook", methods=["POST"])
 @require_api_key
-def start_cook() -> Tuple[Dict[str, Any], int]:
+def start_cook() -> tuple[dict[str, Any], int]:
     """
     Start a cooking session.
 
@@ -104,33 +107,32 @@ def start_cook() -> Tuple[Dict[str, Any], int]:
     Flow:
     1. Extract JSON from request
     2. Validate with validators.validate_start_cook()
-    3. Create Anova client
+    3. Get WebSocket client from app context
     4. Call client.start_cook()
     5. Return success response
 
     Reference: CLAUDE.md Section "API Endpoints Reference > POST /start-cook" (lines 948-978)
     Reference: CLAUDE.md Section "Code Patterns > 3. Authentication Pattern" (lines 401-434)
+    Reference: WebSocket migration plan Section "Component Rewrites > 3. server/routes.py"
     """
     # Validate input (raises ValidationError if invalid)
     validated = validate_start_cook(request.json or {})
 
-    # Get configuration from app context
-    config: Config = current_app.config['ANOVA_CONFIG']
+    # Get WebSocket client from app context (initialized at startup)
+    client = current_app.config["ANOVA_CLIENT"]
 
-    # Create Anova client and start cook
-    client = AnovaClient(config)
+    # Start cook via WebSocket
     result = client.start_cook(
-        temperature_c=validated['temperature_celsius'],
-        time_minutes=validated['time_minutes']
+        temperature_c=validated["temperature_celsius"], time_minutes=validated["time_minutes"]
     )
 
     # Return success response
     return jsonify(result), 200
 
 
-@api.route('/status', methods=['GET'])
+@api.route("/status", methods=["GET"])
 @require_api_key
-def get_status() -> Tuple[Dict[str, Any], int]:
+def get_status() -> tuple[dict[str, Any], int]:
     """
     Get current cooking status.
 
@@ -154,20 +156,17 @@ def get_status() -> Tuple[Dict[str, Any], int]:
 
     Reference: CLAUDE.md Section "API Endpoints Reference > GET /status" (lines 980-1002)
     """
-    # Get configuration from app context
-    config: Config = current_app.config['ANOVA_CONFIG']
-
-    # Create Anova client and get status
-    client = AnovaClient(config)
+    # Get WebSocket client from app context (initialized at startup)
+    client = current_app.config["ANOVA_CLIENT"]
     status = client.get_status()
 
     # Return status response
     return jsonify(status), 200
 
 
-@api.route('/stop-cook', methods=['POST'])
+@api.route("/stop-cook", methods=["POST"])
 @require_api_key
-def stop_cook() -> Tuple[Dict[str, Any], int]:
+def stop_cook() -> tuple[dict[str, Any], int]:
     """
     Stop the current cooking session.
 
@@ -188,11 +187,8 @@ def stop_cook() -> Tuple[Dict[str, Any], int]:
 
     Reference: CLAUDE.md Section "API Endpoints Reference > POST /stop-cook" (lines 1004-1026)
     """
-    # Get configuration from app context
-    config: Config = current_app.config['ANOVA_CONFIG']
-
-    # Create Anova client and stop cook
-    client = AnovaClient(config)
+    # Get WebSocket client from app context (initialized at startup)
+    client = current_app.config["ANOVA_CLIENT"]
     result = client.stop_cook()
 
     # Return success response

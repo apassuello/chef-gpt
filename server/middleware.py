@@ -16,12 +16,14 @@ Reference: CLAUDE.md Section "Code Patterns > 4. Logging Pattern"
 """
 
 import hmac
+import logging
 import os
 import time
-import logging
+from collections.abc import Callable
 from functools import wraps
-from typing import Callable, Any
-from flask import request, jsonify, g, Flask
+from typing import Any
+
+from flask import Flask, g, jsonify, request
 
 logger = logging.getLogger(__name__)
 
@@ -29,6 +31,7 @@ logger = logging.getLogger(__name__)
 # ==============================================================================
 # AUTHENTICATION MIDDLEWARE
 # ==============================================================================
+
 
 def require_api_key(f: Callable) -> Callable:
     """
@@ -73,30 +76,33 @@ def require_api_key(f: Callable) -> Callable:
     - NEVER log the API key or auth header
     - Return same error message for missing/invalid keys (don't leak info)
     """
+
     @wraps(f)
     def decorated_function(*args: Any, **kwargs: Any) -> Any:
         # Get Authorization header
-        auth_header = request.headers.get('Authorization')
+        auth_header = request.headers.get("Authorization")
 
         if not auth_header:
-            return jsonify({
-                "error": "UNAUTHORIZED",
-                "message": "Missing Authorization header"
-            }), 401
+            return jsonify(
+                {"error": "UNAUTHORIZED", "message": "Missing Authorization header"}
+            ), 401
 
         # Extract token from "Bearer <token>"
         parts = auth_header.split()
-        if len(parts) != 2 or parts[0].lower() != 'bearer':
-            return jsonify({
-                "error": "UNAUTHORIZED",
-                "message": "Invalid Authorization header format. Expected: Bearer <token>"
-            }), 401
+        if len(parts) != 2 or parts[0].lower() != "bearer":
+            return jsonify(
+                {
+                    "error": "UNAUTHORIZED",
+                    "message": "Invalid Authorization header format. Expected: Bearer <token>",
+                }
+            ), 401
 
         provided_key = parts[1]
 
         # Get API key from Flask config (preferred) or environment
         from flask import current_app
-        expected_key = current_app.config.get('API_KEY') or os.getenv('API_KEY')
+
+        expected_key = current_app.config.get("API_KEY") or os.getenv("API_KEY")
 
         # If no API key configured, allow request (dev mode)
         if not expected_key:
@@ -105,10 +111,7 @@ def require_api_key(f: Callable) -> Callable:
 
         # Constant-time comparison (prevents timing attacks)
         if not hmac.compare_digest(provided_key, expected_key):
-            return jsonify({
-                "error": "UNAUTHORIZED",
-                "message": "Invalid API key"
-            }), 401
+            return jsonify({"error": "UNAUTHORIZED", "message": "Invalid API key"}), 401
 
         # Authentication successful
         return f(*args, **kwargs)
@@ -119,6 +122,7 @@ def require_api_key(f: Callable) -> Callable:
 # ==============================================================================
 # LOGGING MIDDLEWARE
 # ==============================================================================
+
 
 def setup_request_logging(app: Flask) -> None:
     """
@@ -146,15 +150,13 @@ def setup_request_logging(app: Flask) -> None:
     - Do NOT log response body (may contain tokens)
     - Only log: method, path, remote_addr, status_code, duration
     """
+
     @app.before_request
     def before_request():
         """Log incoming request and record start time."""
         g.start_time = time.time()
         # Log request safely (no sensitive data)
-        logger.info(
-            f"{request.method} {request.path} "
-            f"from {request.remote_addr}"
-        )
+        logger.info(f"{request.method} {request.path} from {request.remote_addr}")
 
     @app.after_request
     def after_request(response):
@@ -163,11 +165,7 @@ def setup_request_logging(app: Flask) -> None:
         duration = time.time() - g.start_time
 
         # Log response safely (no sensitive data)
-        logger.info(
-            f"{request.method} {request.path} "
-            f"→ {response.status_code} "
-            f"({duration:.3f}s)"
-        )
+        logger.info(f"{request.method} {request.path} → {response.status_code} ({duration:.3f}s)")
 
         return response
 
@@ -181,10 +179,7 @@ def log_request_safely() -> None:
     Logs only: method, path, remote address
     NEVER logs: headers, body, query parameters (may contain secrets)
     """
-    logger.info(
-        f"{request.method} {request.path} "
-        f"from {request.remote_addr}"
-    )
+    logger.info(f"{request.method} {request.path} from {request.remote_addr}")
 
 
 def log_response_safely(status_code: int) -> None:
@@ -205,6 +200,7 @@ def log_response_safely(status_code: int) -> None:
 # ==============================================================================
 # ERROR HANDLING MIDDLEWARE
 # ==============================================================================
+
 
 def register_error_handlers(app: Flask) -> None:
     """
@@ -231,73 +227,61 @@ def register_error_handlers(app: Flask) -> None:
     Reference: CLAUDE.md Section "Code Patterns > 1. Error Handling Pattern" (lines 207-233)
     """
     from .exceptions import (
-        ValidationError,
         AnovaAPIError,
-        DeviceOfflineError,
         AuthenticationError,
         DeviceBusyError,
-        NoActiveCookError
+        DeviceOfflineError,
+        NoActiveCookError,
+        ValidationError,
     )
 
     @app.errorhandler(ValidationError)
     def handle_validation_error(error: ValidationError):
         """Map ValidationError to 400 Bad Request."""
         logger.warning(f"Validation failed: {error.error_code}")
-        return jsonify({
-            "error": error.error_code,
-            "message": error.message
-        }), 400
+        return jsonify({"error": error.error_code, "message": error.message}), 400
 
     @app.errorhandler(DeviceOfflineError)
     def handle_device_offline(error: DeviceOfflineError):
         """Map DeviceOfflineError to 503 Service Unavailable."""
         logger.error(f"Device offline: {error.message}")
-        return jsonify({
-            "error": "DEVICE_OFFLINE",
-            "message": error.message,
-            "retry_after": 60  # Suggest retry after 60 seconds
-        }), 503
+        return jsonify(
+            {
+                "error": "DEVICE_OFFLINE",
+                "message": error.message,
+                "retry_after": 60,  # Suggest retry after 60 seconds
+            }
+        ), 503
 
     @app.errorhandler(DeviceBusyError)
     def handle_device_busy(error: DeviceBusyError):
         """Map DeviceBusyError to 409 Conflict."""
         logger.warning(f"Device busy: {error.message}")
-        return jsonify({
-            "error": "DEVICE_BUSY",
-            "message": error.message
-        }), 409
+        return jsonify({"error": "DEVICE_BUSY", "message": error.message}), 409
 
     @app.errorhandler(NoActiveCookError)
     def handle_no_active_cook(error: NoActiveCookError):
         """Map NoActiveCookError to 409 Conflict."""
         logger.warning(f"No active cook: {error.message}")
-        return jsonify({
-            "error": "NO_ACTIVE_COOK",
-            "message": error.message
-        }), 409
+        return jsonify({"error": "NO_ACTIVE_COOK", "message": error.message}), 409
 
     @app.errorhandler(AuthenticationError)
     def handle_authentication_error(error: AuthenticationError):
         """Map AuthenticationError to 500 Internal Server Error."""
         logger.error(f"Authentication failed: {error.message}")
-        return jsonify({
-            "error": "AUTHENTICATION_ERROR",
-            "message": error.message
-        }), 500
+        return jsonify({"error": "AUTHENTICATION_ERROR", "message": error.message}), 500
 
     @app.errorhandler(AnovaAPIError)
     def handle_anova_api_error(error: AnovaAPIError):
         """Map generic Anova errors to their status code."""
         logger.error(f"Anova API error: {error.message}")
-        return jsonify({
-            "error": "ANOVA_API_ERROR",
-            "message": error.message
-        }), error.status_code
+        return jsonify({"error": "ANOVA_API_ERROR", "message": error.message}), error.status_code
 
 
 # ==============================================================================
 # MIDDLEWARE REGISTRATION
 # ==============================================================================
+
 
 def register_middleware(app: Flask) -> None:
     """

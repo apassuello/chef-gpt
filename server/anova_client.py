@@ -1,308 +1,464 @@
 """
-Client for Anova Cloud API.
+WebSocket client for Anova Cloud API.
+
+Uses official Anova WebSocket API with Personal Access Tokens.
+Implements threading bridge to provide synchronous interface for Flask routes.
 
 Handles:
-- Firebase authentication (email/password → JWT tokens)
-- Token refresh when expired
+- WebSocket connection with Personal Access Token
+- Automatic device discovery
 - Device control (start cook, stop cook, get status)
-- Error handling and retries
+- Real-time status updates via events
+- Thread-safe command/response queuing
 
 API Flow:
-1. Authenticate with Firebase using Anova credentials
-2. Get JWT access token and refresh token
-3. Use access token for Anova API calls
-4. Refresh token when it expires (Firebase tokens expire after 1 hour)
+1. Connect to WebSocket with Personal Access Token
+2. Receive EVENT_APC_WIFI_LIST for device discovery
+3. Send commands via WebSocket (CMD_APC_START, CMD_APC_STOP)
+4. Receive real-time status updates via events
+5. Cache status for instant retrieval
 
-Reference: CLAUDE.md Section "Component Responsibilities"
-Reference: docs/02-security-architecture.md Section 4 (authentication flows)
+Reference: Official Anova WebSocket API documentation
+Reference: https://github.com/anova-culinary/developer-project-wifi
 Reference: docs/03-component-architecture.md Section 4.3
 """
 
-import os
+import asyncio
+import json
 import logging
-from typing import Dict, Any, Optional
-from datetime import datetime, timedelta
-import requests
+import queue
+import threading
+import uuid
+from typing import Any
+
+import websockets
 
 from .config import Config
 from .exceptions import (
     AnovaAPIError,
-    DeviceOfflineError,
     AuthenticationError,
     DeviceBusyError,
-    NoActiveCookError
+    DeviceOfflineError,
+    NoActiveCookError,
 )
 
 logger = logging.getLogger(__name__)
 
 
-class AnovaClient:
+class AnovaWebSocketClient:
     """
-    Client for communicating with Anova Cloud API.
+    WebSocket client for Anova WiFi devices.
 
-    Handles Firebase authentication and Anova device control.
-    Maintains JWT tokens and refreshes them automatically when expired.
+    Uses official Anova WebSocket API with Personal Access Tokens.
+    Runs WebSocket connection in background thread to bridge with synchronous Flask.
+
+    Architecture:
+    - Background thread runs async event loop
+    - WebSocket connection maintained in background
+    - Commands sent via thread-safe queue
+    - Responses received via another queue
+    - Device status cached and updated in real-time
 
     Attributes:
-        config: Configuration with credentials and device ID
-        session: Persistent HTTP session for connection reuse
-        _access_token: Firebase JWT access token (expires after 1 hour)
-        _refresh_token: Firebase refresh token (long-lived)
-        _token_expiry: When the access token expires
+        config: Configuration with Personal Access Token
+        token: Personal Access Token for authentication
+        websocket: WebSocket connection (in background thread)
+        event_loop: Async event loop (in background thread)
+        background_thread: Thread running the event loop
+        command_queue: Queue for sending commands to background thread
+        response_queue: Queue for receiving responses from background thread
+        devices: Dictionary of discovered devices {cookerId: device_info}
+        device_status: Cached device status {cookerId: status}
+        selected_device: Currently selected device cookerId
+        connected: Flag indicating WebSocket connection status
 
     Example usage:
-        config = Config.load()
-        client = AnovaClient(config)
+        config = Config.from_env()
+        client = AnovaWebSocketClient(config)
+        # Wait for connection and device discovery
+        time.sleep(2)
+        # Use synchronous API
         client.start_cook(temperature_c=65.0, time_minutes=90)
         status = client.get_status()
         client.stop_cook()
 
-    Reference: docs/02-security-architecture.md Section 4
+    Reference: Migration plan Section "Component Rewrites > 1. server/anova_client.py"
     """
 
-    # Firebase API endpoints
-    FIREBASE_AUTH_URL = "https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword"
-    FIREBASE_REFRESH_URL = "https://securetoken.googleapis.com/v1/token"
+    # Connection timeout
+    CONNECTION_TIMEOUT = 30
 
-    # Anova API endpoints
-    ANOVA_BASE_URL = "https://anovaculinary.io/api/v1"
-
-    # Token refresh buffer (refresh if expiring within this time)
-    TOKEN_REFRESH_BUFFER = timedelta(minutes=5)
+    # Command timeout
+    COMMAND_TIMEOUT = 10
 
     def __init__(self, config: Config):
         """
-        Initialize Anova client.
+        Initialize WebSocket client and start background thread.
 
         Args:
-            config: Configuration with ANOVA_EMAIL, ANOVA_PASSWORD, DEVICE_ID
+            config: Configuration with PERSONAL_ACCESS_TOKEN
 
         Raises:
-            AuthenticationError: If authentication fails
+            AuthenticationError: If connection fails
 
-        Reference: COMP-ANOVA-01 (docs/03-component-architecture.md Section 4.3.1)
+        Reference: Migration plan threading bridge pattern
         """
         self.config = config
-        self.session = requests.Session()
-        self.session.headers.update({
-            'Content-Type': 'application/json',
-            'Accept': 'application/json'
-        })
+        self.token = config.PERSONAL_ACCESS_TOKEN
+        self.websocket_url = config.ANOVA_WEBSOCKET_URL
 
-        # Initialize empty token state
-        self._access_token: Optional[str] = None
-        self._refresh_token: Optional[str] = None
-        self._token_expiry: Optional[datetime] = None
+        # Threading infrastructure
+        self.event_loop: asyncio.AbstractEventLoop | None = None
+        self.background_thread: threading.Thread | None = None
+        self.websocket: websockets.WebSocketClientProtocol | None = None
 
-        # Authenticate immediately
-        self._authenticate()
+        # Connection state
+        self.connected = threading.Event()
+        self.device_discovered = threading.Event()  # NEW - signals device list received
+        self.connection_error: Exception | None = None
 
-        logger.info("AnovaClient initialized successfully")
+        # Thread-safe queues for communication
+        self.command_queue: queue.Queue = queue.Queue()
+        # CRITICAL FIX: Use per-request queues instead of single response_queue
+        # This prevents response mis-matching when multiple commands are in flight
+        self.pending_requests: dict[str, queue.Queue] = {}
+        self.pending_lock = threading.Lock()
 
-    def _authenticate(self) -> None:
+        # Device state cache (updated by event stream)
+        self.devices: dict[str, dict[str, Any]] = {}
+        self.device_status: dict[str, dict[str, Any]] = {}
+        self.selected_device: str | None = None
+
+        # Locks for thread-safe access
+        self.status_lock = threading.Lock()
+        self.devices_lock = threading.Lock()  # CRITICAL FIX: Protect devices dict
+
+        # Shutdown flag for graceful cleanup
+        self.shutdown_requested = threading.Event()
+
+        # Start background thread
+        self._start_background_thread()
+
+        # Wait for initial connection (with timeout)
+        if not self.connected.wait(timeout=self.CONNECTION_TIMEOUT):
+            error_msg = "WebSocket connection timeout"
+            if self.connection_error:
+                error_msg = f"WebSocket connection failed: {self.connection_error}"
+            raise AuthenticationError(error_msg)
+
+        logger.info("AnovaWebSocketClient initialized successfully")
+
+    def wait_for_device(self, timeout: float = 10.0) -> bool:
         """
-        Authenticate with Firebase to get JWT tokens.
+        Wait for device discovery to complete.
 
-        Makes POST request to Firebase authentication API with email/password.
-        Stores access_token, refresh_token, and token_expiry.
-
-        Raises:
-            AuthenticationError: If authentication fails
-
-        API Request:
-            POST https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key={API_KEY}
-            Body: {"email": "...", "password": "...", "returnSecureToken": true}
-
-        API Response:
-            {"idToken": "...", "refreshToken": "...", "expiresIn": "3600"}
-
-        Reference: docs/02-security-architecture.md Section 4.1
-        """
-        firebase_api_key = os.getenv('FIREBASE_API_KEY')
-        if not firebase_api_key:
-            raise AuthenticationError("FIREBASE_API_KEY environment variable not set")
-
-        url = f"{self.FIREBASE_AUTH_URL}?key={firebase_api_key}"
-        payload = {
-            "email": self.config.ANOVA_EMAIL,
-            "password": self.config.ANOVA_PASSWORD,
-            "returnSecureToken": True
-        }
-
-        try:
-            response = requests.post(url, json=payload, timeout=10)
-
-            if response.status_code != 200:
-                error_msg = response.json().get("error", {}).get("message", "Unknown error")
-                raise AuthenticationError(f"Firebase authentication failed: {error_msg}")
-
-            data = response.json()
-            self._access_token = data["idToken"]
-            self._refresh_token = data["refreshToken"]
-
-            # Calculate token expiry (expiresIn is in seconds)
-            expires_in = int(data["expiresIn"])
-            self._token_expiry = datetime.now() + timedelta(seconds=expires_in)
-
-            logger.info("Firebase authentication successful")
-
-        except requests.exceptions.RequestException as e:
-            raise AuthenticationError(f"Network error during authentication: {str(e)}")
-        except KeyError as e:
-            raise AuthenticationError(f"Unexpected response format from Firebase: missing {e}")
-
-    def _refresh_access_token(self) -> None:
-        """
-        Refresh the access token using the refresh token.
-
-        Makes POST request to Firebase token refresh endpoint.
-        Updates access_token and token_expiry.
-
-        Raises:
-            AuthenticationError: If refresh fails
-
-        API Request:
-            POST https://securetoken.googleapis.com/v1/token?key={API_KEY}
-            Body: {"grant_type": "refresh_token", "refresh_token": "..."}
-
-        API Response:
-            {"id_token": "...", "refresh_token": "...", "expires_in": "3600"}
-
-        Reference: docs/02-security-architecture.md Section 4.1
-        """
-        firebase_api_key = os.getenv('FIREBASE_API_KEY')
-        if not firebase_api_key:
-            raise AuthenticationError("FIREBASE_API_KEY environment variable not set")
-
-        url = f"{self.FIREBASE_REFRESH_URL}?key={firebase_api_key}"
-        payload = {
-            "grant_type": "refresh_token",
-            "refresh_token": self._refresh_token
-        }
-
-        try:
-            response = requests.post(url, json=payload, timeout=10)
-
-            if response.status_code != 200:
-                # Refresh failed, need to re-authenticate
-                logger.warning("Token refresh failed, re-authenticating")
-                self._authenticate()
-                return
-
-            data = response.json()
-            self._access_token = data["id_token"]
-            self._refresh_token = data.get("refresh_token", self._refresh_token)
-
-            # Calculate token expiry
-            expires_in = int(data["expires_in"])
-            self._token_expiry = datetime.now() + timedelta(seconds=expires_in)
-
-            logger.info("Access token refreshed successfully")
-
-        except requests.exceptions.RequestException as e:
-            # Network error, try full re-authentication
-            logger.warning(f"Network error during token refresh: {e}, re-authenticating")
-            self._authenticate()
-        except KeyError as e:
-            logger.warning(f"Unexpected response format during token refresh: {e}, re-authenticating")
-            self._authenticate()
-
-    def _ensure_authenticated(self) -> None:
-        """
-        Ensure we have a valid access token.
-
-        Checks if token is expired or will expire within TOKEN_REFRESH_BUFFER (5 minutes).
-        If so, refreshes the token using the refresh token.
-
-        Raises:
-            AuthenticationError: If token refresh or re-authentication fails
-        """
-        if self._token_expiry is None:
-            # No token, need to authenticate
-            self._authenticate()
-            return
-
-        # Check if token is expired or will expire soon
-        now = datetime.now()
-        if now >= (self._token_expiry - self.TOKEN_REFRESH_BUFFER):
-            logger.info("Access token expired or expiring soon, refreshing")
-            self._refresh_access_token()
-
-    def _api_request(self, method: str, endpoint: str, **kwargs) -> Dict[str, Any]:
-        """
-        Make an authenticated request to the Anova API.
+        Blocks until EVENT_APC_WIFI_LIST is received and at least one device
+        is discovered, or timeout expires.
 
         Args:
-            method: HTTP method (GET, POST, etc.)
-            endpoint: API endpoint path (e.g., "/devices/{device_id}")
-            **kwargs: Additional arguments passed to requests (json, params, etc.)
+            timeout: Maximum seconds to wait for device discovery
 
         Returns:
-            Response JSON as dictionary
+            True if device discovered within timeout, False if timeout
 
-        Raises:
-            DeviceOfflineError: If device returns 404
-            AnovaAPIError: For other API errors
+        Usage:
+            client = AnovaWebSocketClient(config)
+            if not client.wait_for_device(timeout=5.0):
+                raise DeviceOfflineError("No device discovered")
+
+        Note:
+            - Connection timeout is handled in __init__ (30s)
+            - This waits for device discovery after connection succeeds
+            - Typical discovery time: 50-200ms
+            - Timeout is safety net for slow networks or simulator issues
         """
-        # Ensure we have a valid token
-        self._ensure_authenticated()
+        discovered = self.device_discovered.wait(timeout=timeout)
 
-        # Build full URL
-        url = f"{self.ANOVA_BASE_URL}{endpoint}"
+        if discovered:
+            logger.debug(f"Device ready: {self.selected_device}")
+        else:
+            logger.warning(f"Device discovery timeout after {timeout}s")
 
-        # Add authorization header
-        headers = kwargs.pop('headers', {})
-        headers['Authorization'] = f"Bearer {self._access_token}"
+        return discovered
+
+    def is_connected(self) -> bool:
+        """
+        Check if client is truly connected (not just unblocked from init wait).
+
+        The connected.is_set() flag is set on both:
+        - Successful WebSocket connection
+        - Connection failure (to unblock __init__)
+
+        This method distinguishes between these cases.
+
+        Returns:
+            True only if actually connected with no connection error
+        """
+        return self.connected.is_set() and self.connection_error is None
+
+    def _start_background_thread(self):
+        """Start background thread running async event loop."""
+        self.background_thread = threading.Thread(
+            target=self._run_event_loop, daemon=True, name="AnovaWebSocketThread"
+        )
+        self.background_thread.start()
+        logger.debug("Background WebSocket thread started")
+
+    def _run_event_loop(self):
+        """Run async event loop in background thread."""
+        self.event_loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(self.event_loop)
 
         try:
-            response = self.session.request(
-                method=method,
-                url=url,
-                headers=headers,
-                timeout=10,
-                **kwargs
-            )
+            self.event_loop.run_until_complete(self._websocket_handler())
+        except Exception as e:
+            logger.error(f"WebSocket event loop error: {e}")
+            self.connection_error = e
+            self.connected.set()  # Unblock init even on error
+        finally:
+            self.event_loop.close()
+            logger.debug("WebSocket event loop closed")
 
-            # Handle specific status codes
-            if response.status_code == 404:
-                raise DeviceOfflineError("Device not found or offline")
+    async def _websocket_handler(self):
+        """Main WebSocket connection handler with auto-reconnect."""
+        url = f"{self.websocket_url}?token={self.token}&supportedAccessories=APC"
+        # Log URL without exposing token (mask all but first 8 chars)
+        safe_url = f"{self.websocket_url}?token={self.token[:8] if len(self.token) > 8 else '***'}...&supportedAccessories=APC"
+        logger.info(f"WebSocket URL: {safe_url}")
 
-            if response.status_code >= 400:
-                error_msg = response.json().get("error", "Unknown error")
-                raise AnovaAPIError(f"Anova API error ({response.status_code}): {error_msg}", response.status_code)
+        retry_count = 0
+        max_retries = 3
 
-            return response.json()
+        while retry_count < max_retries:
+            try:
+                logger.info(
+                    f"Connecting to Anova WebSocket (attempt {retry_count + 1}/{max_retries})..."
+                )
+                async with websockets.connect(url, ping_interval=20, ping_timeout=10) as websocket:
+                    self.websocket = websocket
+                    self.connected.set()  # Signal successful connection
+                    logger.info("WebSocket connected successfully")
 
-        except requests.exceptions.Timeout:
-            raise AnovaAPIError("Request timeout", 503)
-        except requests.exceptions.RequestException as e:
-            raise AnovaAPIError(f"Network error: {str(e)}", 503)
+                    # Start concurrent tasks for send and receive
+                    receive_task = asyncio.create_task(self._receive_messages())
+                    send_task = asyncio.create_task(self._send_commands())
 
-    def _map_state(self, anova_state: str) -> str:
+                    # Wait for both tasks (runs until disconnect)
+                    await asyncio.gather(receive_task, send_task)
+
+            except websockets.exceptions.WebSocketException as e:
+                retry_count += 1
+                logger.error(f"WebSocket connection error: {e}")
+                self.connection_error = e
+
+                if retry_count < max_retries:
+                    wait_time = 2**retry_count  # Exponential backoff
+                    logger.info(f"Retrying in {wait_time} seconds...")
+                    await asyncio.sleep(wait_time)
+                else:
+                    logger.error("Max retries reached, giving up")
+                    self.connected.set()  # Unblock init to raise error
+                    raise AuthenticationError(
+                        f"Failed to connect after {max_retries} attempts: {e}"
+                    ) from e
+
+            except Exception as e:
+                logger.error(f"Unexpected error in WebSocket handler: {e}")
+                self.connection_error = e
+                self.connected.set()
+                raise
+
+    async def _receive_messages(self):
+        """Receive and process WebSocket messages."""
+        try:
+            async for message in self.websocket:
+                try:
+                    data = json.loads(message)
+                    command = data.get("command", "")
+
+                    logger.debug(f"Received message: {command}")
+
+                    if command == "EVENT_APC_WIFI_LIST":
+                        # Device discovery
+                        self._handle_device_list(data.get("payload", []))
+
+                    elif command.startswith("EVENT_"):
+                        # Status update event
+                        self._handle_status_update(data)
+
+                    elif (
+                        command == "RESPONSE"
+                        or command.startswith("RESPONSE_")
+                        or command.startswith("CMD_")
+                    ):
+                        # Route response to correct caller using requestId
+                        # Simulator sends "RESPONSE", real API might send "RESPONSE_*" or echo "CMD_*"
+                        request_id = data.get("requestId")
+                        if request_id:
+                            with self.pending_lock:
+                                if request_id in self.pending_requests:
+                                    self.pending_requests[request_id].put(data)
+                                    logger.debug(
+                                        f"Routed response {command} to request {request_id}"
+                                    )
+                                else:
+                                    logger.warning(
+                                        f"Received response for unknown request {request_id}"
+                                    )
+                        else:
+                            logger.warning(f"Response missing requestId: {command}")
+
+                    else:
+                        logger.debug(f"Unhandled message type: {command}")
+
+                except json.JSONDecodeError as e:
+                    logger.error(f"Failed to parse message: {e}")
+                except Exception as e:
+                    logger.error(f"Error processing message: {e}")
+
+        except websockets.exceptions.ConnectionClosed:
+            logger.warning("WebSocket connection closed")
+        except Exception as e:
+            logger.error(f"Error in receive loop: {e}")
+
+    async def _send_commands(self):
+        """Send commands from queue to WebSocket."""
+        try:
+            while True:
+                # Check queue periodically (non-blocking)
+                await asyncio.sleep(0.1)
+
+                try:
+                    command = self.command_queue.get_nowait()
+                    await self.websocket.send(json.dumps(command))
+                    logger.debug(f"Sent command: {command.get('command')}")
+                except queue.Empty:
+                    continue
+                except Exception as e:
+                    logger.error(f"Error sending command: {e}")
+
+        except Exception as e:
+            logger.error(f"Error in send loop: {e}")
+
+    def _handle_device_list(self, devices: list):
         """
-        Map Anova device state to standard state names.
+        Handle device discovery message (EVENT_APC_WIFI_LIST).
+
+        Populates self.devices dict and auto-selects first device.
+        Signals device_discovered event when at least one device found.
 
         Args:
-            anova_state: State from Anova API
+            devices: List of device objects from EVENT_APC_WIFI_LIST
+        """
+        # FIX: Use devices_lock not status_lock (thread-safety bug fix)
+        with self.devices_lock:
+            for device in devices:
+                cooker_id = device.get("cookerId")
+                if cooker_id:
+                    self.devices[cooker_id] = device
+                    logger.info(f"Discovered device: {device.get('name')} ({cooker_id})")
+
+                    # Auto-select first device if none selected
+                    if self.selected_device is None:
+                        self.selected_device = cooker_id
+                        logger.info(f"Auto-selected device: {cooker_id}")
+
+                        # Initialize status cache for selected device
+                        self.device_status[cooker_id] = {
+                            "state": "idle",
+                            "currentTemperature": 0,
+                            "targetTemperature": None,
+                            "timeRemaining": None,
+                            "timeElapsed": None,
+                        }
+
+            # NEW: Signal that device discovery is complete
+            if len(self.devices) > 0:
+                self.device_discovered.set()
+                logger.debug(f"Device discovery complete: {len(self.devices)} device(s) found")
+
+    def _handle_status_update(self, data: dict[str, Any]):
+        """
+        Handle device status update event (EVENT_APC_STATE).
+
+        Updates cached status from real-time events.
+
+        The simulator sends nested payload structure:
+        {
+            "cookerId": "...",
+            "state": {
+                "job-status": {"state": "idle", "cook-time-remaining": 0},
+                "job": {"target-temperature": 65.0},
+                "temperature-info": {"water-temperature": 22.0},
+                ...
+            }
+        }
+
+        Args:
+            data: Event data with status information
+        """
+        payload = data.get("payload", {})
+        cooker_id = payload.get("cookerId")
+
+        if cooker_id and cooker_id in self.devices:
+            with self.status_lock:
+                # Extract nested state structure from simulator format
+                state_data = payload.get("state", {})
+
+                # Extract job-status fields (device state, time remaining)
+                job_status = state_data.get("job-status", {})
+                if "state" in job_status:
+                    self.device_status[cooker_id]["state"] = job_status["state"]
+                if "cook-time-remaining" in job_status:
+                    self.device_status[cooker_id]["timeRemaining"] = job_status[
+                        "cook-time-remaining"
+                    ]
+
+                # Extract job fields (target temperature, cook time)
+                job = state_data.get("job", {})
+                if "target-temperature" in job:
+                    self.device_status[cooker_id]["targetTemperature"] = job["target-temperature"]
+
+                # Extract temperature-info fields (current water temperature)
+                temp_info = state_data.get("temperature-info", {})
+                if "water-temperature" in temp_info:
+                    self.device_status[cooker_id]["currentTemperature"] = temp_info[
+                        "water-temperature"
+                    ]
+
+                logger.debug(f"Updated status for {cooker_id}: {self.device_status[cooker_id]}")
+
+    def _map_state(self, state: str) -> str:
+        """
+        Map device state to standardized state names.
+
+        Args:
+            state: State from Anova WebSocket
 
         Returns:
             Normalized state: "idle", "preheating", "cooking", or "done"
         """
         state_map = {
-            'idle': 'idle',
-            'preheating': 'preheating',
-            'cooking': 'cooking',
-            'maintaining': 'cooking',  # Maintaining temp = cooking
-            'done': 'done',
-            'stopped': 'idle'
+            "idle": "idle",
+            "preheating": "preheating",
+            "cooking": "cooking",
+            "maintaining": "cooking",  # Maintaining temp = cooking
+            "done": "done",
+            "stopped": "idle",
+            "": "idle",  # Default empty state
         }
 
-        normalized = anova_state.lower()
-        return state_map.get(normalized, 'idle')
+        normalized = state.lower() if state else ""
+        return state_map.get(normalized, "idle")
 
-    def get_status(self) -> Dict[str, Any]:
+    # Public API (synchronous, called from Flask routes)
+
+    def get_status(self) -> dict[str, Any]:
         """
-        Get current device status.
+        Get current device status from cache.
+
+        Returns cached status that's updated in real-time by WebSocket events.
+        This is instant (no network request needed).
 
         Returns:
             Dict with current status:
@@ -317,40 +473,37 @@ class AnovaClient:
                 }
 
         Raises:
-            DeviceOfflineError: If device is offline (404)
-            AnovaAPIError: For other API errors
+            DeviceOfflineError: If no device is connected
 
-        Reference: COMP-ANOVA-01 (docs/03-component-architecture.md Section 4.3.1)
+        Reference: Same API as old REST client for compatibility
         """
-        endpoint = f"/devices/{self.config.DEVICE_ID}"
+        if self.selected_device is None:
+            raise DeviceOfflineError("No device connected")
 
-        try:
-            data = self._api_request('GET', endpoint)
+        with self.status_lock:
+            # Return cached status (updated by event stream)
+            status = self.device_status.get(self.selected_device, {})
 
-            # Parse Anova response
-            state = self._map_state(data.get('cookerState', 'idle'))
-            is_running = state in ['preheating', 'cooking']
+            state = self._map_state(status.get("state", "idle"))
+            is_running = state in ["preheating", "cooking"]
 
             # Convert times from seconds to minutes
-            time_remaining = data.get('cookTimeRemaining')
-            time_elapsed = data.get('cookTimeElapsed')
+            time_remaining = status.get("timeRemaining")
+            time_elapsed = status.get("timeElapsed")
 
             return {
-                'device_online': True,
-                'state': state,
-                'current_temp_celsius': float(data.get('currentTemperature', 0)),
-                'target_temp_celsius': float(data['targetTemperature']) if data.get('targetTemperature') else None,
-                'time_remaining_minutes': int(time_remaining // 60) if time_remaining else None,
-                'time_elapsed_minutes': int(time_elapsed // 60) if time_elapsed else None,
-                'is_running': is_running
+                "device_online": True,  # If we have status, device is online
+                "state": state,
+                "current_temp_celsius": float(status.get("currentTemperature", 0)),
+                "target_temp_celsius": float(status["targetTemperature"])
+                if status.get("targetTemperature")
+                else None,
+                "time_remaining_minutes": int(time_remaining // 60) if time_remaining else None,
+                "time_elapsed_minutes": int(time_elapsed // 60) if time_elapsed else None,
+                "is_running": is_running,
             }
 
-        except DeviceOfflineError:
-            raise
-        except AnovaAPIError:
-            raise
-
-    def start_cook(self, temperature_c: float, time_minutes: int) -> Dict[str, Any]:
+    def start_cook(self, temperature_c: float, time_minutes: int) -> dict[str, Any]:
         """
         Start a cooking session.
 
@@ -371,46 +524,90 @@ class AnovaClient:
                 }
 
         Raises:
-            DeviceOfflineError: If device is offline
+            DeviceOfflineError: If device is not connected
             DeviceBusyError: If device is already cooking
-            AnovaAPIError: For other API errors
+            AnovaAPIError: For other API errors or timeout
 
-        Reference: COMP-ANOVA-01 (docs/03-component-architecture.md Section 4.3.1)
+        Reference: CMD_APC_START from official API
         """
+        if self.selected_device is None:
+            raise DeviceOfflineError("No device connected")
+
         # Check if device is already cooking
+        status = self.get_status()
+        if status["is_running"]:
+            raise DeviceBusyError("Device is already cooking. Stop current cook first.")
+
+        # CRITICAL FIX: Get device type with thread-safe access
+        with self.devices_lock:
+            device_info = self.devices.get(self.selected_device, {})
+            device_type = device_info.get("type", "oven_v2")  # Default type
+
+        # Build WebSocket command with unique requestId
+        request_id = str(uuid.uuid4())
+        command = {
+            "command": "CMD_APC_START",
+            "requestId": request_id,
+            "payload": {
+                "cookerId": self.selected_device,
+                "type": device_type,
+                "targetTemperature": temperature_c,
+                "unit": "C",
+                "timer": time_minutes * 60,  # Convert to seconds
+            },
+        }
+
+        # CRITICAL FIX: Create per-request queue for response
+        response_queue = queue.Queue()
+        with self.pending_lock:
+            self.pending_requests[request_id] = response_queue
+
         try:
-            status = self.get_status()
-            if status['is_running']:
-                raise DeviceBusyError("Device is already cooking. Stop current cook first.")
-        except DeviceOfflineError:
-            raise
+            # Send command via queue
+            self.command_queue.put(command)
+            logger.info(f"Starting cook: {temperature_c}°C for {time_minutes} minutes")
 
-        # Start cook command
-        endpoint = f"/devices/{self.config.DEVICE_ID}/cook"
-        payload = {
-            "temperature": temperature_c,
-            "timer": time_minutes * 60  # Convert to seconds
-        }
+            # Wait for response (with timeout)
+            response = response_queue.get(timeout=self.COMMAND_TIMEOUT)
 
-        data = self._api_request('POST', endpoint, json=payload)
+            # Check response for errors
+            payload = response.get("payload", {})
+            if payload.get("status") == "error":
+                error_code = payload.get("code", "UNKNOWN_ERROR")
+                error_message = payload.get("message", "Unknown error from device")
+                logger.error(f"Start cook failed: {error_code} - {error_message}")
 
-        # Generate cook_id if not provided
-        cook_id = data.get('cookId', f"cook_{int(datetime.now().timestamp())}")
+                # Map error codes to appropriate exceptions
+                if error_code == "DEVICE_BUSY":
+                    raise DeviceBusyError(error_message)
+                elif error_code == "INVALID_TEMPERATURE":
+                    from .exceptions import ValidationError
 
-        # Calculate estimated completion
-        estimated_completion = datetime.now() + timedelta(minutes=time_minutes)
+                    raise ValidationError("INVALID_TEMPERATURE", error_message)
+                elif error_code == "INVALID_TIMER":
+                    from .exceptions import ValidationError
 
-        return {
-            'success': True,
-            'message': 'Cook started successfully',
-            'cook_id': cook_id,
-            'device_state': 'preheating',
-            'target_temp_celsius': temperature_c,
-            'time_minutes': time_minutes,
-            'estimated_completion': estimated_completion.isoformat() + 'Z'
-        }
+                    raise ValidationError("INVALID_TIMER", error_message)
+                else:
+                    raise AnovaAPIError(error_message, 500)
 
-    def stop_cook(self) -> Dict[str, Any]:
+            # Return response matching API spec (CLAUDE.md Section "API Endpoints Reference")
+            return {
+                "status": "started",
+                "target_temp_celsius": temperature_c,
+                "time_minutes": time_minutes,
+                "device_id": self.selected_device,
+            }
+
+        except queue.Empty:
+            logger.error("Start cook command timeout")
+            raise AnovaAPIError("Start cook command timeout", 504) from None
+        finally:
+            # CRITICAL FIX: Clean up pending request queue
+            with self.pending_lock:
+                self.pending_requests.pop(request_id, None)
+
+    def stop_cook(self) -> dict[str, Any]:
         """
         Stop the current cooking session.
 
@@ -424,46 +621,123 @@ class AnovaClient:
                 }
 
         Raises:
-            DeviceOfflineError: If device is offline
+            DeviceOfflineError: If device is not connected
             NoActiveCookError: If no cook is active
-            AnovaAPIError: For other API errors
+            AnovaAPIError: For other API errors or timeout
 
-        Reference: COMP-ANOVA-01 (docs/03-component-architecture.md Section 4.3.1)
-        Reference: docs/05-api-specification.md lines 254-263
+        Reference: CMD_APC_STOP from official API
         """
+        if self.selected_device is None:
+            raise DeviceOfflineError("No device connected")
+
         # Check if there's an active cook and capture final temperature
-        try:
-            status = self.get_status()
-            if not status['is_running']:
-                raise NoActiveCookError("No active cook to stop")
+        status = self.get_status()
+        if not status["is_running"]:
+            raise NoActiveCookError("No active cook to stop")
 
-            # Capture current temperature before stopping
-            final_temp = status['current_temp_celsius']
-        except DeviceOfflineError:
-            raise
+        # Capture current temperature before stopping
+        final_temp = status["current_temp_celsius"]
 
-        # Stop cook command
-        endpoint = f"/devices/{self.config.DEVICE_ID}/stop"
-        self._api_request('POST', endpoint)
+        # CRITICAL FIX: Get device type with thread-safe access
+        with self.devices_lock:
+            device_info = self.devices.get(self.selected_device, {})
+            device_type = device_info.get("type", "oven_v2")
 
-        return {
-            'success': True,
-            'message': 'Cook stopped successfully',
-            'device_state': 'idle',
-            'final_temp_celsius': final_temp
+        # Build WebSocket command with unique requestId
+        request_id = str(uuid.uuid4())
+        command = {
+            "command": "CMD_APC_STOP",
+            "requestId": request_id,
+            "payload": {"cookerId": self.selected_device, "type": device_type},
         }
+
+        # CRITICAL FIX: Create per-request queue for response
+        response_queue = queue.Queue()
+        with self.pending_lock:
+            self.pending_requests[request_id] = response_queue
+
+        try:
+            # Send command via queue
+            self.command_queue.put(command)
+            logger.info("Stopping cook")
+
+            # Wait for response (with timeout)
+            response = response_queue.get(timeout=self.COMMAND_TIMEOUT)
+
+            # Check response for errors
+            payload = response.get("payload", {})
+            if payload.get("status") == "error":
+                error_code = payload.get("code", "UNKNOWN_ERROR")
+                error_message = payload.get("message", "Unknown error from device")
+                logger.error(f"Stop cook failed: {error_code} - {error_message}")
+
+                if error_code == "NO_ACTIVE_COOK":
+                    raise NoActiveCookError(error_message)
+                else:
+                    raise AnovaAPIError(error_message, 500)
+
+            # Return response matching API spec (CLAUDE.md Section "API Endpoints Reference")
+            return {
+                "status": "stopped",
+                "final_temp_celsius": final_temp,
+            }
+
+        except queue.Empty:
+            logger.error("Stop cook command timeout")
+            raise AnovaAPIError("Stop cook command timeout", 504) from None
+        finally:
+            # CRITICAL FIX: Clean up pending request queue
+            with self.pending_lock:
+                self.pending_requests.pop(request_id, None)
+
+    def shutdown(self) -> None:
+        """
+        CRITICAL FIX: Gracefully shutdown WebSocket connection and background thread.
+
+        This method should be called when the Flask app is shutting down to:
+        1. Close the WebSocket connection cleanly
+        2. Allow the background thread to complete
+        3. Clean up resources
+
+        Note: This is registered as an atexit handler in app.py
+        """
+        logger.info("Shutting down AnovaWebSocketClient")
+
+        # Signal shutdown
+        self.shutdown_requested.set()
+
+        # Close WebSocket connection
+        # In websockets 15.x, check state instead of 'closed' attribute
+        if self.websocket and self.websocket.state.name != "CLOSED":
+            try:
+                # Schedule close on the event loop
+                if self.event_loop and self.event_loop.is_running():
+                    asyncio.run_coroutine_threadsafe(
+                        self.websocket.close(), self.event_loop
+                    ).result(timeout=2)
+                logger.info("WebSocket connection closed")
+            except Exception as e:
+                logger.warning(f"Error closing WebSocket: {e}")
+
+        # Wait for background thread to finish (with timeout)
+        if self.background_thread and self.background_thread.is_alive():
+            self.background_thread.join(timeout=5)
+            if self.background_thread.is_alive():
+                logger.warning("Background thread did not stop within timeout")
+            else:
+                logger.info("Background thread stopped successfully")
 
 
 # ==============================================================================
 # SECURITY NOTES
 # ==============================================================================
 # CRITICAL - Token handling security:
-# ✅ Store tokens in memory only (never log or persist to disk)
-# ✅ Refresh tokens before they expire (proactive refresh with 5-min buffer)
-# ✅ Use HTTPS for all API calls
+# ✅ Store token in memory only (never log or persist to disk)
+# ✅ Use WebSocket with TLS (wss://)
+# ✅ Thread-safe queues prevent race conditions
 #
-# ❌ NEVER log access tokens or refresh tokens
-# ❌ NEVER store tokens in files or databases
-# ❌ NEVER expose tokens in error messages
+# ❌ NEVER log Personal Access Token
+# ❌ NEVER expose token in error messages
+# ❌ NEVER send token in command payloads (only in connection URL)
 #
-# Reference: CLAUDE.md Section "Anti-Patterns > 1. Never Log Credentials or Tokens"
+# Reference: Migration plan Section "Authentication Changes"

@@ -1,8 +1,13 @@
 # Anova AI Sous Vide Assistant
 
+[![CI](https://github.com/apassuello/chef-gpt/actions/workflows/ci.yml/badge.svg)](https://github.com/apassuello/chef-gpt/actions/workflows/ci.yml)
+[![Ruff](https://img.shields.io/badge/linting-ruff-yellow)](https://github.com/astral-sh/ruff)
+[![ty](https://img.shields.io/badge/type%20checker-ty-blue)](https://github.com/astral-sh/ty)
+[![Coverage](https://img.shields.io/badge/coverage-74%25-green)](https://github.com/apassuello/chef-gpt/actions/workflows/ci.yml)
+
 > Natural language control of Anova Precision Cooker via ChatGPT
 
-**Status:** ✅ Integration Tests Complete (102/102 passing) | 🏗️ Deployment Phase Next
+**Status:** 223 tests passing (99 unit + 91 simulator + 33 E2E) | 74% coverage | WebSocket migration complete | CI enforced
 
 ---
 
@@ -10,38 +15,54 @@
 
 An AI-powered sous vide cooking assistant that bridges ChatGPT with an Anova Precision Cooker 3.0. Talk to ChatGPT naturally (*"Cook chicken at 65°C for 90 minutes"*) and your sous vide cooker responds automatically, with built-in food safety guardrails.
 
-**Architecture:** API Gateway / Bridge Pattern
+**Architecture:** API Gateway / Bridge Pattern with WebSocket Client
 **Deployment:** Self-hosted Raspberry Pi Zero 2 W
 **Key Feature:** Food safety validation at the API level (non-bypassable)
 
 ```
-ChatGPT Custom GPT ←→ Flask API Server ←→ Anova Cloud API ←→ Physical Device
-   (HTTPS/OpenAPI)     (Raspberry Pi)      (Firebase Auth)
+ChatGPT Custom GPT ←→ Flask API Server ←→ Anova WebSocket API ←→ Physical Device
+   (HTTPS/OpenAPI)     (Raspberry Pi)    (wss://devices.anovaculinary.io)
 ```
 
 ---
 
 ## Current Status
 
-### ✅ Integration Test Suite Complete (2026-01-14)
+### ✅ WebSocket Migration & Simulator Integration Complete (2026-01-20)
 
 **Test Coverage:**
-- ✅ **102/102 tests passing** (64 unit + 38 integration)
-- ✅ 87% code coverage (434/489 lines)
+- ✅ **223/223 tests passing** (99 unit + 91 simulator + 33 E2E)
+- ✅ 74% code coverage
 - ✅ All critical paths tested
-- ✅ Test execution time: 0.16s
-- ✅ Zero warnings or errors
+- ✅ E2E tests fully operational with SimulatorThread pattern
+- ✅ Test execution time: ~14s
+- ✅ CI enforced quality gates (lint, typecheck, tests)
 
 **Component Implementation Status:**
-- ✅ **exceptions.py** - Complete (7 exception classes, 167 LOC)
-- ✅ **validators.py** - Complete (food safety rules, 295 LOC)
-- ✅ **config.py** - Complete (env + JSON loading, 277 LOC)
-- ✅ **middleware.py** - Complete (auth + error handling, 338 LOC)
-- ✅ **anova_client.py** - Complete (Firebase + Anova API, 470 LOC)
-- ✅ **routes.py** - Complete (4 endpoints, 217 LOC)
-- ✅ **app.py** - Complete (Flask factory, 198 LOC)
+- ✅ **exceptions.py** - Complete (7 exception classes)
+- ✅ **validators.py** - Complete (food safety rules, 90% coverage)
+- ✅ **config.py** - Complete (WebSocket URL configurable, 82% coverage)
+- ✅ **middleware.py** - Complete (auth + error handling, 90% coverage)
+- ✅ **anova_client.py** - Complete (WebSocket client with threading bridge, 544 LOC)
+- ✅ **routes.py** - Complete (4 endpoints, 100% coverage)
+- ✅ **app.py** - Complete (Flask factory with WebSocket lifecycle)
 
-**Total Production Code:** 1,962 lines across 7 components
+**Simulator Infrastructure:**
+- ✅ **simulator/** - Complete Anova device simulator (10k+ lines)
+- ✅ **tests/e2e/** - E2E test infrastructure (32 tests, all passing)
+- ✅ **tests/simulator/** - Simulator unit tests (91 tests)
+- ✅ **demo/** - Interactive demo system with 7 cooking scenarios
+
+**Total Production Code:** ~12,000 lines (server + simulator + tests)
+
+**Recent Achievement (2026-01-20):**
+- Fixed E2E test timing issues using SimulatorThread pattern
+- All 32 E2E tests now pass reliably without pytest-asyncio conflicts
+- Added response error checking to start_cook/stop_cook operations
+- Fixed websockets 15.x compatibility issues
+- Implemented PID-based port isolation for parallel test execution
+- **Note:** E2E tests excluded from CI (run locally for full validation)
+- **See:** `docs/E2E_TEST_FIX_AUDIT_REPORT.md` for technical details
 
 ### ✅ Scaffolding Complete (2026-01-09)
 
@@ -248,13 +269,31 @@ Legend: ✅ Complete | 🏗️ Stub (ready for implementation)
 ### Testing
 
 ```bash
-# When tests are implemented:
-pytest                          # Run all tests
-pytest --cov=server            # With coverage
-pytest tests/test_validators.py # Specific file
-pytest -v                      # Verbose
-pytest -x                      # Stop on first failure
+# Run all tests (223 total)
+pytest                          # All tests
+pytest -v                       # Verbose output
+pytest --cov=server            # With coverage report
+
+# Run specific test categories
+pytest tests/test_*.py         # Unit tests (99 tests)
+pytest tests/simulator/        # Simulator tests (91 tests)
+pytest tests/e2e/              # E2E tests (33 tests)
+
+# Run specific test file
+pytest tests/test_validators.py -v
+
+# Stop on first failure
+pytest -x
+
+# Run tests with duration report
+pytest --durations=10
 ```
+
+**Note on CI Testing:**
+- CI runs unit tests and simulator tests (190 tests)
+- E2E tests excluded from CI to reduce complexity
+- Run full test suite locally before pushing: `pytest -v`
+- E2E tests validate full server ↔ simulator ↔ client integration
 
 ### Code Quality
 
