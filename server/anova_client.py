@@ -86,9 +86,6 @@ class AnovaWebSocketClient:
     Reference: Migration plan Section "Component Rewrites > 1. server/anova_client.py"
     """
 
-    # WebSocket endpoint
-    ANOVA_WEBSOCKET_URL = "wss://devices.anovaculinary.io"
-
     # Connection timeout
     CONNECTION_TIMEOUT = 30
 
@@ -109,6 +106,7 @@ class AnovaWebSocketClient:
         """
         self.config = config
         self.token = config.PERSONAL_ACCESS_TOKEN
+        self.websocket_url = config.ANOVA_WEBSOCKET_URL
 
         # Threading infrastructure
         self.event_loop: asyncio.AbstractEventLoop | None = None
@@ -175,7 +173,7 @@ class AnovaWebSocketClient:
 
     async def _websocket_handler(self):
         """Main WebSocket connection handler with auto-reconnect."""
-        url = f"{self.ANOVA_WEBSOCKET_URL}?token={self.token}&supportedAccessories=APC"
+        url = f"{self.websocket_url}?token={self.token}&supportedAccessories=APC"
 
         retry_count = 0
         max_retries = 3

@@ -46,6 +46,9 @@ class Config:
     # API key for ChatGPT auth (required)
     API_KEY: str
 
+    # WebSocket URL (configurable for testing with local simulator)
+    ANOVA_WEBSOCKET_URL: str = "wss://devices.anovaculinary.io"
+
     # Server settings
     HOST: str = "0.0.0.0"
     PORT: int = 5000
@@ -112,6 +115,7 @@ class Config:
         """
         pat = os.environ.get("PERSONAL_ACCESS_TOKEN")
         api_key = os.environ.get("API_KEY")
+        ws_url = os.environ.get("ANOVA_WEBSOCKET_URL", "wss://devices.anovaculinary.io")
 
         # Validate required fields
         if not pat:
@@ -120,8 +124,10 @@ class Config:
         if not api_key:
             raise ValueError("Missing required environment variable: API_KEY")
 
-        # Validate PAT format
-        if not pat.startswith("anova-"):
+        # Validate PAT format (skip for local simulator testing)
+        # When using ws://localhost, allow any token format for testing
+        is_local_simulator = ws_url.startswith("ws://localhost")
+        if not is_local_simulator and not pat.startswith("anova-"):
             raise ValueError(
                 "PERSONAL_ACCESS_TOKEN must start with 'anova-'. "
                 "Generate token in Anova mobile app: More → Developer → Personal Access Tokens"
@@ -130,7 +136,12 @@ class Config:
         # Parse DEBUG env var
         debug = os.environ.get("DEBUG", "").lower() == "true"
 
-        return cls(PERSONAL_ACCESS_TOKEN=pat, API_KEY=api_key, DEBUG=debug)
+        return cls(
+            PERSONAL_ACCESS_TOKEN=pat,
+            API_KEY=api_key,
+            ANOVA_WEBSOCKET_URL=ws_url,
+            DEBUG=debug,
+        )
 
     @classmethod
     def _from_json_file(cls, path: Path) -> Self:
