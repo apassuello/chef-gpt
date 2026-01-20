@@ -4,8 +4,8 @@
 # Linting and formatting
 ruff>=0.4.0
 
-# Type checking
-pyright>=1.1.350
+# Type checking (ty from Astral - same team as ruff)
+ty>=0.0.12
 
 # Coverage reporting (also in requirements.txt but listed here for clarity)
 pytest-cov>=4.0
