@@ -24,36 +24,32 @@ Reference: CLAUDE.md Section "Testing Strategy > Mocking Anova API"
 Reference: WebSocket migration plan Section "Testing Strategy"
 """
 
-import pytest
-import asyncio
-import queue
 import json
-from datetime import datetime, timedelta
-from unittest.mock import Mock, AsyncMock, patch, MagicMock, call
-from typing import Dict, Any
+import queue
+from unittest.mock import AsyncMock, MagicMock, Mock, patch
+
+import pytest
 
 from server.anova_client import AnovaWebSocketClient
 from server.config import Config
 from server.exceptions import (
-    DeviceOfflineError,
+    AnovaAPIError,
     AuthenticationError,
     DeviceBusyError,
+    DeviceOfflineError,
     NoActiveCookError,
-    AnovaAPIError
 )
-
 
 # ==============================================================================
 # TEST FIXTURES
 # ==============================================================================
 
+
 @pytest.fixture
 def mock_config():
     """Create a test configuration for WebSocket client."""
     return Config(
-        PERSONAL_ACCESS_TOKEN="anova-test-token-12345",
-        API_KEY="test-api-key",
-        DEBUG=True
+        PERSONAL_ACCESS_TOKEN="anova-test-token-12345", API_KEY="test-api-key", DEBUG=True
     )
 
 
@@ -69,66 +65,71 @@ def mock_websocket():
 @pytest.fixture
 def mock_device_list_message():
     """Create a mock device discovery message."""
-    return json.dumps({
-        "command": "EVENT_APC_WIFI_LIST",
-        "payload": [
-            {
-                "cookerId": "test-device-123",
-                "name": "Test Cooker",
-                "type": "oven_v2",
-                "online": True
-            }
-        ]
-    })
+    return json.dumps(
+        {
+            "command": "EVENT_APC_WIFI_LIST",
+            "payload": [
+                {
+                    "cookerId": "test-device-123",
+                    "name": "Test Cooker",
+                    "type": "oven_v2",
+                    "online": True,
+                }
+            ],
+        }
+    )
 
 
 @pytest.fixture
 def mock_start_response_message():
     """Create a mock start cook response message."""
-    return json.dumps({
-        "command": "RESPONSE_CMD_APC_START",
-        "requestId": "test-request-id",
-        "payload": {
-            "success": True
+    return json.dumps(
+        {
+            "command": "RESPONSE_CMD_APC_START",
+            "requestId": "test-request-id",
+            "payload": {"success": True},
         }
-    })
+    )
 
 
 @pytest.fixture
 def mock_stop_response_message():
     """Create a mock stop cook response message."""
-    return json.dumps({
-        "command": "RESPONSE_CMD_APC_STOP",
-        "requestId": "test-request-id",
-        "payload": {
-            "success": True
+    return json.dumps(
+        {
+            "command": "RESPONSE_CMD_APC_STOP",
+            "requestId": "test-request-id",
+            "payload": {"success": True},
         }
-    })
+    )
 
 
 @pytest.fixture
 def mock_status_update_message():
     """Create a mock status update event message."""
-    return json.dumps({
-        "command": "EVENT_APC_STATUS_UPDATE",
-        "payload": {
-            "cookerId": "test-device-123",
-            "state": "cooking",
-            "currentTemperature": 64.8,
-            "targetTemperature": 65.0,
-            "timeRemaining": 2700,  # 45 minutes
-            "timeElapsed": 2700  # 45 minutes
+    return json.dumps(
+        {
+            "command": "EVENT_APC_STATUS_UPDATE",
+            "payload": {
+                "cookerId": "test-device-123",
+                "state": "cooking",
+                "currentTemperature": 64.8,
+                "targetTemperature": 65.0,
+                "timeRemaining": 2700,  # 45 minutes
+                "timeElapsed": 2700,  # 45 minutes
+            },
         }
-    })
+    )
 
 
 # ==============================================================================
 # INITIALIZATION AND CONNECTION TESTS
 # ==============================================================================
 
+
 def test_initialization_success(mock_config):
     """Test successful WebSocket client initialization."""
-    with patch('server.anova_client.websockets.connect') as mock_connect:
+    with patch("server.anova_client.websockets.connect") as mock_connect:
         # Mock WebSocket connection
         mock_ws = AsyncMock()
         mock_ws.__aiter__.return_value = iter([])
@@ -139,7 +140,7 @@ def test_initialization_success(mock_config):
             # Immediately signal connection success without starting thread
             self.connected.set()
 
-        with patch.object(AnovaWebSocketClient, '_start_background_thread', mock_start_thread):
+        with patch.object(AnovaWebSocketClient, "_start_background_thread", mock_start_thread):
             # Create client
             client = AnovaWebSocketClient(mock_config)
 
@@ -150,12 +151,12 @@ def test_initialization_success(mock_config):
 
 def test_initialization_timeout(mock_config):
     """Test initialization timeout when connection takes too long."""
-    with patch('server.anova_client.websockets.connect') as mock_connect:
+    with patch("server.anova_client.websockets.connect") as mock_connect:
         # Mock connection that never completes
-        mock_connect.return_value.__aenter__.side_effect = asyncio.TimeoutError()
+        mock_connect.return_value.__aenter__.side_effect = TimeoutError()
 
-        with patch.object(AnovaWebSocketClient, '_start_background_thread'):
-            with patch.object(AnovaWebSocketClient, 'CONNECTION_TIMEOUT', 0.1):
+        with patch.object(AnovaWebSocketClient, "_start_background_thread"):
+            with patch.object(AnovaWebSocketClient, "CONNECTION_TIMEOUT", 0.1):
                 # Should timeout and raise AuthenticationError
                 with pytest.raises(AuthenticationError) as exc_info:
                     AnovaWebSocketClient(mock_config)
@@ -173,7 +174,7 @@ def test_initialization_connection_error(mock_config):
     # The actual code only raises if connected.wait() times out OR if connection_error is set
     # Let's simulate the scenario where thread signals connection with error set
 
-    with patch('server.anova_client.websockets.connect') as mock_connect:
+    with patch("server.anova_client.websockets.connect") as mock_connect:
         # Mock connection error
         mock_connect.side_effect = Exception("Connection refused")
 
@@ -204,7 +205,7 @@ def test_initialization_connection_error(mock_config):
                 error_msg = f"WebSocket connection failed: {self.connection_error}"
                 raise AuthenticationError(error_msg)
 
-        with patch.object(AnovaWebSocketClient, '__init__', patched_init):
+        with patch.object(AnovaWebSocketClient, "__init__", patched_init):
             # Should raise AuthenticationError
             with pytest.raises(AuthenticationError) as exc_info:
                 AnovaWebSocketClient(mock_config)
@@ -216,10 +217,11 @@ def test_initialization_connection_error(mock_config):
 # DEVICE DISCOVERY TESTS
 # ==============================================================================
 
+
 def test_handle_device_list_single_device(mock_config, mock_device_list_message):
     """Test device discovery with single device."""
     # Create client without starting background thread
-    with patch.object(AnovaWebSocketClient, '_start_background_thread'):
+    with patch.object(AnovaWebSocketClient, "_start_background_thread"):
         client = AnovaWebSocketClient.__new__(AnovaWebSocketClient)
         client.config = mock_config
         client.devices = {}
@@ -249,7 +251,7 @@ def test_handle_device_list_single_device(mock_config, mock_device_list_message)
 def test_handle_device_list_multiple_devices(mock_config):
     """Test device discovery with multiple devices."""
     # Create client without starting background thread
-    with patch.object(AnovaWebSocketClient, '_start_background_thread'):
+    with patch.object(AnovaWebSocketClient, "_start_background_thread"):
         client = AnovaWebSocketClient.__new__(AnovaWebSocketClient)
         client.config = mock_config
         client.devices = {}
@@ -280,10 +282,11 @@ def test_handle_device_list_multiple_devices(mock_config):
 # STATUS UPDATE HANDLING TESTS
 # ==============================================================================
 
+
 def test_handle_status_update(mock_config, mock_status_update_message):
     """Test status update handling from event stream."""
     # Create client without starting background thread
-    with patch.object(AnovaWebSocketClient, '_start_background_thread'):
+    with patch.object(AnovaWebSocketClient, "_start_background_thread"):
         client = AnovaWebSocketClient.__new__(AnovaWebSocketClient)
         client.config = mock_config
         client.devices = {"test-device-123": {"name": "Test Cooker"}}
@@ -293,7 +296,7 @@ def test_handle_status_update(mock_config, mock_status_update_message):
                 "currentTemperature": 20.0,
                 "targetTemperature": None,
                 "timeRemaining": None,
-                "timeElapsed": None
+                "timeElapsed": None,
             }
         }
         client.selected_device = "test-device-123"
@@ -317,7 +320,7 @@ def test_handle_status_update(mock_config, mock_status_update_message):
 def test_handle_status_update_unknown_device(mock_config):
     """Test status update for unknown device is ignored."""
     # Create client without starting background thread
-    with patch.object(AnovaWebSocketClient, '_start_background_thread'):
+    with patch.object(AnovaWebSocketClient, "_start_background_thread"):
         client = AnovaWebSocketClient.__new__(AnovaWebSocketClient)
         client.config = mock_config
         client.devices = {}
@@ -330,10 +333,7 @@ def test_handle_status_update_unknown_device(mock_config):
         # Handle update for unknown device
         data = {
             "command": "EVENT_APC_STATUS_UPDATE",
-            "payload": {
-                "cookerId": "unknown-device",
-                "state": "cooking"
-            }
+            "payload": {"cookerId": "unknown-device", "state": "cooking"},
         }
         client._handle_status_update(data)
 
@@ -345,9 +345,10 @@ def test_handle_status_update_unknown_device(mock_config):
 # STATE MAPPING TESTS
 # ==============================================================================
 
+
 def test_map_state_standard_states(mock_config):
     """Test state mapping for standard states."""
-    with patch.object(AnovaWebSocketClient, '_start_background_thread'):
+    with patch.object(AnovaWebSocketClient, "_start_background_thread"):
         client = AnovaWebSocketClient.__new__(AnovaWebSocketClient)
         client.config = mock_config
 
@@ -362,7 +363,7 @@ def test_map_state_standard_states(mock_config):
 
 def test_map_state_case_insensitive(mock_config):
     """Test state mapping is case insensitive."""
-    with patch.object(AnovaWebSocketClient, '_start_background_thread'):
+    with patch.object(AnovaWebSocketClient, "_start_background_thread"):
         client = AnovaWebSocketClient.__new__(AnovaWebSocketClient)
         client.config = mock_config
 
@@ -374,7 +375,7 @@ def test_map_state_case_insensitive(mock_config):
 
 def test_map_state_empty_and_unknown(mock_config):
     """Test state mapping for empty and unknown states."""
-    with patch.object(AnovaWebSocketClient, '_start_background_thread'):
+    with patch.object(AnovaWebSocketClient, "_start_background_thread"):
         client = AnovaWebSocketClient.__new__(AnovaWebSocketClient)
         client.config = mock_config
 
@@ -390,9 +391,10 @@ def test_map_state_empty_and_unknown(mock_config):
 # GET STATUS TESTS
 # ==============================================================================
 
+
 def test_get_status_success(mock_config):
     """Test successful status retrieval from cache."""
-    with patch.object(AnovaWebSocketClient, '_start_background_thread'):
+    with patch.object(AnovaWebSocketClient, "_start_background_thread"):
         client = AnovaWebSocketClient.__new__(AnovaWebSocketClient)
         client.config = mock_config
         client.selected_device = "test-device-123"
@@ -402,7 +404,7 @@ def test_get_status_success(mock_config):
                 "currentTemperature": 64.8,
                 "targetTemperature": 65.0,
                 "timeRemaining": 2820,  # 47 minutes in seconds
-                "timeElapsed": 2580  # 43 minutes in seconds
+                "timeElapsed": 2580,  # 43 minutes in seconds
             }
         }
         client.status_lock = MagicMock()
@@ -424,7 +426,7 @@ def test_get_status_success(mock_config):
 
 def test_get_status_idle_device(mock_config):
     """Test status retrieval for idle device."""
-    with patch.object(AnovaWebSocketClient, '_start_background_thread'):
+    with patch.object(AnovaWebSocketClient, "_start_background_thread"):
         client = AnovaWebSocketClient.__new__(AnovaWebSocketClient)
         client.config = mock_config
         client.selected_device = "test-device-123"
@@ -434,7 +436,7 @@ def test_get_status_idle_device(mock_config):
                 "currentTemperature": 20.0,
                 "targetTemperature": None,
                 "timeRemaining": None,
-                "timeElapsed": None
+                "timeElapsed": None,
             }
         }
         client.status_lock = MagicMock()
@@ -456,7 +458,7 @@ def test_get_status_idle_device(mock_config):
 
 def test_get_status_no_device(mock_config):
     """Test status retrieval when no device is connected."""
-    with patch.object(AnovaWebSocketClient, '_start_background_thread'):
+    with patch.object(AnovaWebSocketClient, "_start_background_thread"):
         client = AnovaWebSocketClient.__new__(AnovaWebSocketClient)
         client.config = mock_config
         client.selected_device = None
@@ -474,22 +476,21 @@ def test_get_status_no_device(mock_config):
 # START COOK TESTS
 # ==============================================================================
 
+
 def test_start_cook_success(mock_config):
     """Test successful cook start."""
-    with patch.object(AnovaWebSocketClient, '_start_background_thread'):
+    with patch.object(AnovaWebSocketClient, "_start_background_thread"):
         client = AnovaWebSocketClient.__new__(AnovaWebSocketClient)
         client.config = mock_config
         client.selected_device = "test-device-123"
-        client.devices = {
-            "test-device-123": {"type": "oven_v2", "name": "Test Cooker"}
-        }
+        client.devices = {"test-device-123": {"type": "oven_v2", "name": "Test Cooker"}}
         client.device_status = {
             "test-device-123": {
                 "state": "idle",
                 "currentTemperature": 20.0,
                 "targetTemperature": None,
                 "timeRemaining": None,
-                "timeElapsed": None
+                "timeElapsed": None,
             }
         }
         client.command_queue = queue.Queue()
@@ -520,12 +521,12 @@ def test_start_cook_success(mock_config):
         mock_response = {
             "command": "RESPONSE_CMD_APC_START",
             "requestId": "test-request-id",
-            "payload": {"success": True}
+            "payload": {"success": True},
         }
         mock_response_queue.put(mock_response)
 
         # Mock Queue() to return our pre-populated queue
-        with patch('queue.Queue', return_value=mock_response_queue):
+        with patch("queue.Queue", return_value=mock_response_queue):
             # Start cook
             result = client.start_cook(temperature_c=65.0, time_minutes=90)
 
@@ -546,7 +547,7 @@ def test_start_cook_success(mock_config):
 
 def test_start_cook_device_offline(mock_config):
     """Test start cook when no device is connected."""
-    with patch.object(AnovaWebSocketClient, '_start_background_thread'):
+    with patch.object(AnovaWebSocketClient, "_start_background_thread"):
         client = AnovaWebSocketClient.__new__(AnovaWebSocketClient)
         client.config = mock_config
         client.selected_device = None
@@ -560,7 +561,7 @@ def test_start_cook_device_offline(mock_config):
 
 def test_start_cook_device_busy(mock_config):
     """Test start cook when device is already cooking."""
-    with patch.object(AnovaWebSocketClient, '_start_background_thread'):
+    with patch.object(AnovaWebSocketClient, "_start_background_thread"):
         client = AnovaWebSocketClient.__new__(AnovaWebSocketClient)
         client.config = mock_config
         client.selected_device = "test-device-123"
@@ -570,7 +571,7 @@ def test_start_cook_device_busy(mock_config):
                 "currentTemperature": 64.8,
                 "targetTemperature": 65.0,
                 "timeRemaining": 2700,
-                "timeElapsed": 2700
+                "timeElapsed": 2700,
             }
         }
         client.status_lock = MagicMock()
@@ -586,14 +587,12 @@ def test_start_cook_device_busy(mock_config):
 
 def test_start_cook_timeout(mock_config):
     """Test start cook with response timeout."""
-    with patch.object(AnovaWebSocketClient, '_start_background_thread'):
+    with patch.object(AnovaWebSocketClient, "_start_background_thread"):
         client = AnovaWebSocketClient.__new__(AnovaWebSocketClient)
         client.config = mock_config
         client.selected_device = "test-device-123"
         client.devices = {"test-device-123": {"type": "oven_v2"}}
-        client.device_status = {
-            "test-device-123": {"state": "idle"}
-        }
+        client.device_status = {"test-device-123": {"state": "idle"}}
         client.command_queue = queue.Queue()
 
         # CRITICAL FIX: Add missing attributes for per-request queues
@@ -614,7 +613,7 @@ def test_start_cook_timeout(mock_config):
 
         # CRITICAL FIX: Mock queue.Queue to return empty queue (timeout scenario)
         empty_queue = queue.Queue()  # Empty = timeout
-        with patch('queue.Queue', return_value=empty_queue):
+        with patch("queue.Queue", return_value=empty_queue):
             # Should raise AnovaAPIError on timeout
             with pytest.raises(AnovaAPIError) as exc_info:
                 client.start_cook(temperature_c=65.0, time_minutes=90)
@@ -627,22 +626,21 @@ def test_start_cook_timeout(mock_config):
 # STOP COOK TESTS
 # ==============================================================================
 
+
 def test_stop_cook_success(mock_config):
     """Test successful cook stop."""
-    with patch.object(AnovaWebSocketClient, '_start_background_thread'):
+    with patch.object(AnovaWebSocketClient, "_start_background_thread"):
         client = AnovaWebSocketClient.__new__(AnovaWebSocketClient)
         client.config = mock_config
         client.selected_device = "test-device-123"
-        client.devices = {
-            "test-device-123": {"type": "oven_v2", "name": "Test Cooker"}
-        }
+        client.devices = {"test-device-123": {"type": "oven_v2", "name": "Test Cooker"}}
         client.device_status = {
             "test-device-123": {
                 "state": "cooking",
                 "currentTemperature": 64.9,
                 "targetTemperature": 65.0,
                 "timeRemaining": 2700,
-                "timeElapsed": 2700
+                "timeElapsed": 2700,
             }
         }
         client.command_queue = queue.Queue()
@@ -668,7 +666,7 @@ def test_stop_cook_success(mock_config):
         mock_response = {"command": "RESPONSE_CMD_APC_STOP", "payload": {"success": True}}
         mock_response_queue.put(mock_response)
 
-        with patch('queue.Queue', return_value=mock_response_queue):
+        with patch("queue.Queue", return_value=mock_response_queue):
             # Stop cook
             result = client.stop_cook()
 
@@ -685,7 +683,7 @@ def test_stop_cook_success(mock_config):
 
 def test_stop_cook_no_active_cook(mock_config):
     """Test stop cook when no cook is active."""
-    with patch.object(AnovaWebSocketClient, '_start_background_thread'):
+    with patch.object(AnovaWebSocketClient, "_start_background_thread"):
         client = AnovaWebSocketClient.__new__(AnovaWebSocketClient)
         client.config = mock_config
         client.selected_device = "test-device-123"
@@ -695,7 +693,7 @@ def test_stop_cook_no_active_cook(mock_config):
                 "currentTemperature": 20.0,
                 "targetTemperature": None,
                 "timeRemaining": None,
-                "timeElapsed": None
+                "timeElapsed": None,
             }
         }
         client.status_lock = MagicMock()
@@ -711,7 +709,7 @@ def test_stop_cook_no_active_cook(mock_config):
 
 def test_stop_cook_device_offline(mock_config):
     """Test stop cook when no device is connected."""
-    with patch.object(AnovaWebSocketClient, '_start_background_thread'):
+    with patch.object(AnovaWebSocketClient, "_start_background_thread"):
         client = AnovaWebSocketClient.__new__(AnovaWebSocketClient)
         client.config = mock_config
         client.selected_device = None
@@ -725,17 +723,12 @@ def test_stop_cook_device_offline(mock_config):
 
 def test_stop_cook_timeout(mock_config):
     """Test stop cook with response timeout."""
-    with patch.object(AnovaWebSocketClient, '_start_background_thread'):
+    with patch.object(AnovaWebSocketClient, "_start_background_thread"):
         client = AnovaWebSocketClient.__new__(AnovaWebSocketClient)
         client.config = mock_config
         client.selected_device = "test-device-123"
         client.devices = {"test-device-123": {"type": "oven_v2"}}
-        client.device_status = {
-            "test-device-123": {
-                "state": "cooking",
-                "currentTemperature": 64.9
-            }
-        }
+        client.device_status = {"test-device-123": {"state": "cooking", "currentTemperature": 64.9}}
         client.command_queue = queue.Queue()
 
         # CRITICAL FIX: Add missing attributes for per-request queues
@@ -756,7 +749,7 @@ def test_stop_cook_timeout(mock_config):
 
         # CRITICAL FIX: Mock queue.Queue to return empty queue (timeout scenario)
         empty_queue = queue.Queue()  # Empty = timeout
-        with patch('queue.Queue', return_value=empty_queue):
+        with patch("queue.Queue", return_value=empty_queue):
             # Should raise AnovaAPIError on timeout
             with pytest.raises(AnovaAPIError) as exc_info:
                 client.stop_cook()
@@ -769,19 +762,19 @@ def test_stop_cook_timeout(mock_config):
 # THREAD SAFETY TESTS
 # ==============================================================================
 
+
 def test_status_cache_thread_safety(mock_config):
     """Test that status cache access is thread-safe."""
-    with patch.object(AnovaWebSocketClient, '_start_background_thread'):
+    with patch.object(AnovaWebSocketClient, "_start_background_thread"):
         client = AnovaWebSocketClient.__new__(AnovaWebSocketClient)
         client.config = mock_config
         client.selected_device = "test-device-123"
-        client.device_status = {
-            "test-device-123": {"state": "idle", "currentTemperature": 20.0}
-        }
+        client.device_status = {"test-device-123": {"state": "idle", "currentTemperature": 20.0}}
         client.devices = {"test-device-123": {"name": "Test"}}
 
         # Create a real lock
         import threading
+
         client.status_lock = threading.Lock()
 
         # Test that get_status successfully acquires lock
@@ -798,16 +791,15 @@ def test_status_cache_thread_safety(mock_config):
 # SECURITY TESTS
 # ==============================================================================
 
+
 def test_token_not_in_command_payload(mock_config):
     """Test that Personal Access Token is not included in command payloads."""
-    with patch.object(AnovaWebSocketClient, '_start_background_thread'):
+    with patch.object(AnovaWebSocketClient, "_start_background_thread"):
         client = AnovaWebSocketClient.__new__(AnovaWebSocketClient)
         client.config = mock_config
         client.selected_device = "test-device-123"
         client.devices = {"test-device-123": {"type": "oven_v2"}}
-        client.device_status = {
-            "test-device-123": {"state": "idle"}
-        }
+        client.device_status = {"test-device-123": {"state": "idle"}}
         client.command_queue = queue.Queue()
 
         # CRITICAL FIX: Add missing attributes for per-request queues
@@ -830,7 +822,7 @@ def test_token_not_in_command_payload(mock_config):
         mock_response_queue = queue.Queue()
         mock_response_queue.put({"command": "RESPONSE_CMD_APC_START"})
 
-        with patch('queue.Queue', return_value=mock_response_queue):
+        with patch("queue.Queue", return_value=mock_response_queue):
             # Start cook
             client.start_cook(temperature_c=65.0, time_minutes=90)
 

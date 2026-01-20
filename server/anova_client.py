@@ -24,23 +24,23 @@ Reference: docs/03-component-architecture.md Section 4.3
 """
 
 import asyncio
-import websockets
 import json
-import uuid
 import logging
-import threading
 import queue
-import time
-from typing import Dict, Any, Optional
+import threading
+import uuid
 from datetime import datetime, timedelta
+from typing import Any
+
+import websockets
 
 from .config import Config
 from .exceptions import (
     AnovaAPIError,
-    DeviceOfflineError,
     AuthenticationError,
     DeviceBusyError,
-    NoActiveCookError
+    DeviceOfflineError,
+    NoActiveCookError,
 )
 
 logger = logging.getLogger(__name__)
@@ -111,25 +111,25 @@ class AnovaWebSocketClient:
         self.token = config.PERSONAL_ACCESS_TOKEN
 
         # Threading infrastructure
-        self.event_loop: Optional[asyncio.AbstractEventLoop] = None
-        self.background_thread: Optional[threading.Thread] = None
-        self.websocket: Optional[websockets.WebSocketClientProtocol] = None
+        self.event_loop: asyncio.AbstractEventLoop | None = None
+        self.background_thread: threading.Thread | None = None
+        self.websocket: websockets.WebSocketClientProtocol | None = None
 
         # Connection state
         self.connected = threading.Event()
-        self.connection_error: Optional[Exception] = None
+        self.connection_error: Exception | None = None
 
         # Thread-safe queues for communication
         self.command_queue: queue.Queue = queue.Queue()
         # CRITICAL FIX: Use per-request queues instead of single response_queue
         # This prevents response mis-matching when multiple commands are in flight
-        self.pending_requests: Dict[str, queue.Queue] = {}
+        self.pending_requests: dict[str, queue.Queue] = {}
         self.pending_lock = threading.Lock()
 
         # Device state cache (updated by event stream)
-        self.devices: Dict[str, Dict[str, Any]] = {}
-        self.device_status: Dict[str, Dict[str, Any]] = {}
-        self.selected_device: Optional[str] = None
+        self.devices: dict[str, dict[str, Any]] = {}
+        self.device_status: dict[str, dict[str, Any]] = {}
+        self.selected_device: str | None = None
 
         # Locks for thread-safe access
         self.status_lock = threading.Lock()
@@ -153,9 +153,7 @@ class AnovaWebSocketClient:
     def _start_background_thread(self):
         """Start background thread running async event loop."""
         self.background_thread = threading.Thread(
-            target=self._run_event_loop,
-            daemon=True,
-            name="AnovaWebSocketThread"
+            target=self._run_event_loop, daemon=True, name="AnovaWebSocketThread"
         )
         self.background_thread.start()
         logger.debug("Background WebSocket thread started")
@@ -184,7 +182,9 @@ class AnovaWebSocketClient:
 
         while retry_count < max_retries:
             try:
-                logger.info(f"Connecting to Anova WebSocket (attempt {retry_count + 1}/{max_retries})...")
+                logger.info(
+                    f"Connecting to Anova WebSocket (attempt {retry_count + 1}/{max_retries})..."
+                )
                 async with websockets.connect(url, ping_interval=20, ping_timeout=10) as websocket:
                     self.websocket = websocket
                     self.connected.set()  # Signal successful connection
@@ -203,13 +203,15 @@ class AnovaWebSocketClient:
                 self.connection_error = e
 
                 if retry_count < max_retries:
-                    wait_time = 2 ** retry_count  # Exponential backoff
+                    wait_time = 2**retry_count  # Exponential backoff
                     logger.info(f"Retrying in {wait_time} seconds...")
                     await asyncio.sleep(wait_time)
                 else:
                     logger.error("Max retries reached, giving up")
                     self.connected.set()  # Unblock init to raise error
-                    raise AuthenticationError(f"Failed to connect after {max_retries} attempts: {e}")
+                    raise AuthenticationError(
+                        f"Failed to connect after {max_retries} attempts: {e}"
+                    )
 
             except Exception as e:
                 logger.error(f"Unexpected error in WebSocket handler: {e}")
@@ -242,9 +244,13 @@ class AnovaWebSocketClient:
                             with self.pending_lock:
                                 if request_id in self.pending_requests:
                                     self.pending_requests[request_id].put(data)
-                                    logger.debug(f"Routed response {command} to request {request_id}")
+                                    logger.debug(
+                                        f"Routed response {command} to request {request_id}"
+                                    )
                                 else:
-                                    logger.warning(f"Received response for unknown request {request_id}")
+                                    logger.warning(
+                                        f"Received response for unknown request {request_id}"
+                                    )
                         else:
                             logger.warning(f"Response missing requestId: {command}")
 
@@ -307,10 +313,10 @@ class AnovaWebSocketClient:
                             "currentTemperature": 0,
                             "targetTemperature": None,
                             "timeRemaining": None,
-                            "timeElapsed": None
+                            "timeElapsed": None,
                         }
 
-    def _handle_status_update(self, data: Dict[str, Any]):
+    def _handle_status_update(self, data: dict[str, Any]):
         """
         Handle device status update event.
 
@@ -330,9 +336,13 @@ class AnovaWebSocketClient:
                 if "state" in payload:
                     self.device_status[cooker_id]["state"] = payload["state"]
                 if "currentTemperature" in payload:
-                    self.device_status[cooker_id]["currentTemperature"] = payload["currentTemperature"]
+                    self.device_status[cooker_id]["currentTemperature"] = payload[
+                        "currentTemperature"
+                    ]
                 if "targetTemperature" in payload:
-                    self.device_status[cooker_id]["targetTemperature"] = payload["targetTemperature"]
+                    self.device_status[cooker_id]["targetTemperature"] = payload[
+                        "targetTemperature"
+                    ]
                 if "timeRemaining" in payload:
                     self.device_status[cooker_id]["timeRemaining"] = payload["timeRemaining"]
                 if "timeElapsed" in payload:
@@ -351,21 +361,21 @@ class AnovaWebSocketClient:
             Normalized state: "idle", "preheating", "cooking", or "done"
         """
         state_map = {
-            'idle': 'idle',
-            'preheating': 'preheating',
-            'cooking': 'cooking',
-            'maintaining': 'cooking',  # Maintaining temp = cooking
-            'done': 'done',
-            'stopped': 'idle',
-            '': 'idle'  # Default empty state
+            "idle": "idle",
+            "preheating": "preheating",
+            "cooking": "cooking",
+            "maintaining": "cooking",  # Maintaining temp = cooking
+            "done": "done",
+            "stopped": "idle",
+            "": "idle",  # Default empty state
         }
 
-        normalized = state.lower() if state else ''
-        return state_map.get(normalized, 'idle')
+        normalized = state.lower() if state else ""
+        return state_map.get(normalized, "idle")
 
     # Public API (synchronous, called from Flask routes)
 
-    def get_status(self) -> Dict[str, Any]:
+    def get_status(self) -> dict[str, Any]:
         """
         Get current device status from cache.
 
@@ -397,23 +407,25 @@ class AnovaWebSocketClient:
             status = self.device_status.get(self.selected_device, {})
 
             state = self._map_state(status.get("state", "idle"))
-            is_running = state in ['preheating', 'cooking']
+            is_running = state in ["preheating", "cooking"]
 
             # Convert times from seconds to minutes
             time_remaining = status.get("timeRemaining")
             time_elapsed = status.get("timeElapsed")
 
             return {
-                'device_online': True,  # If we have status, device is online
-                'state': state,
-                'current_temp_celsius': float(status.get('currentTemperature', 0)),
-                'target_temp_celsius': float(status['targetTemperature']) if status.get('targetTemperature') else None,
-                'time_remaining_minutes': int(time_remaining // 60) if time_remaining else None,
-                'time_elapsed_minutes': int(time_elapsed // 60) if time_elapsed else None,
-                'is_running': is_running
+                "device_online": True,  # If we have status, device is online
+                "state": state,
+                "current_temp_celsius": float(status.get("currentTemperature", 0)),
+                "target_temp_celsius": float(status["targetTemperature"])
+                if status.get("targetTemperature")
+                else None,
+                "time_remaining_minutes": int(time_remaining // 60) if time_remaining else None,
+                "time_elapsed_minutes": int(time_elapsed // 60) if time_elapsed else None,
+                "is_running": is_running,
             }
 
-    def start_cook(self, temperature_c: float, time_minutes: int) -> Dict[str, Any]:
+    def start_cook(self, temperature_c: float, time_minutes: int) -> dict[str, Any]:
         """
         Start a cooking session.
 
@@ -445,7 +457,7 @@ class AnovaWebSocketClient:
 
         # Check if device is already cooking
         status = self.get_status()
-        if status['is_running']:
+        if status["is_running"]:
             raise DeviceBusyError("Device is already cooking. Stop current cook first.")
 
         # CRITICAL FIX: Get device type with thread-safe access
@@ -463,8 +475,8 @@ class AnovaWebSocketClient:
                 "type": device_type,
                 "targetTemperature": temperature_c,
                 "unit": "C",
-                "timer": time_minutes * 60  # Convert to seconds
-            }
+                "timer": time_minutes * 60,  # Convert to seconds
+            },
         }
 
         # CRITICAL FIX: Create per-request queue for response
@@ -487,13 +499,13 @@ class AnovaWebSocketClient:
             estimated_completion = datetime.now() + timedelta(minutes=time_minutes)
 
             return {
-                'success': True,
-                'message': 'Cook started successfully',
-                'cook_id': cook_id,
-                'device_state': 'preheating',
-                'target_temp_celsius': temperature_c,
-                'time_minutes': time_minutes,
-                'estimated_completion': estimated_completion.isoformat() + 'Z'
+                "success": True,
+                "message": "Cook started successfully",
+                "cook_id": cook_id,
+                "device_state": "preheating",
+                "target_temp_celsius": temperature_c,
+                "time_minutes": time_minutes,
+                "estimated_completion": estimated_completion.isoformat() + "Z",
             }
 
         except queue.Empty:
@@ -504,7 +516,7 @@ class AnovaWebSocketClient:
             with self.pending_lock:
                 self.pending_requests.pop(request_id, None)
 
-    def stop_cook(self) -> Dict[str, Any]:
+    def stop_cook(self) -> dict[str, Any]:
         """
         Stop the current cooking session.
 
@@ -529,11 +541,11 @@ class AnovaWebSocketClient:
 
         # Check if there's an active cook and capture final temperature
         status = self.get_status()
-        if not status['is_running']:
+        if not status["is_running"]:
             raise NoActiveCookError("No active cook to stop")
 
         # Capture current temperature before stopping
-        final_temp = status['current_temp_celsius']
+        final_temp = status["current_temp_celsius"]
 
         # CRITICAL FIX: Get device type with thread-safe access
         with self.devices_lock:
@@ -545,10 +557,7 @@ class AnovaWebSocketClient:
         command = {
             "command": "CMD_APC_STOP",
             "requestId": request_id,
-            "payload": {
-                "cookerId": self.selected_device,
-                "type": device_type
-            }
+            "payload": {"cookerId": self.selected_device, "type": device_type},
         }
 
         # CRITICAL FIX: Create per-request queue for response
@@ -565,10 +574,10 @@ class AnovaWebSocketClient:
             response = response_queue.get(timeout=self.COMMAND_TIMEOUT)
 
             return {
-                'success': True,
-                'message': 'Cook stopped successfully',
-                'device_state': 'idle',
-                'final_temp_celsius': final_temp
+                "success": True,
+                "message": "Cook stopped successfully",
+                "device_state": "idle",
+                "final_temp_celsius": final_temp,
             }
 
         except queue.Empty:
@@ -601,8 +610,7 @@ class AnovaWebSocketClient:
                 # Schedule close on the event loop
                 if self.event_loop and self.event_loop.is_running():
                     asyncio.run_coroutine_threadsafe(
-                        self.websocket.close(),
-                        self.event_loop
+                        self.websocket.close(), self.event_loop
                     ).result(timeout=2)
                 logger.info("WebSocket connection closed")
             except Exception as e:

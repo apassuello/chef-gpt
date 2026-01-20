@@ -16,9 +16,9 @@ Food Safety Rules: CLAUDE.md Section "Food Safety Rules"
 Specification: docs/03-component-architecture.md Section 4.2.1
 """
 
-from typing import Any, Dict, Optional
-from .exceptions import ValidationError
+from typing import Any
 
+from .exceptions import ValidationError
 
 # ==============================================================================
 # FOOD SAFETY CONSTANTS
@@ -51,7 +51,8 @@ DANGER_ZONE_MAX_HOURS = 4  # Maximum time allowed in danger zone
 # VALIDATION FUNCTIONS
 # ==============================================================================
 
-def validate_start_cook(data: Dict[str, Any]) -> Dict[str, Any]:
+
+def validate_start_cook(data: dict[str, Any]) -> dict[str, Any]:
     """
     Validate parameters for starting a cook.
 
@@ -109,33 +110,21 @@ def validate_start_cook(data: Dict[str, Any]) -> Dict[str, Any]:
     """
     # 1. Check required fields
     if "temperature_celsius" not in data:
-        raise ValidationError(
-            "MISSING_TEMPERATURE",
-            "temperature_celsius is required"
-        )
+        raise ValidationError("MISSING_TEMPERATURE", "temperature_celsius is required")
 
     if "time_minutes" not in data:
-        raise ValidationError(
-            "MISSING_TIME",
-            "time_minutes is required"
-        )
+        raise ValidationError("MISSING_TIME", "time_minutes is required")
 
     # 2. Type validation with coercion
     try:
         temp = float(data["temperature_celsius"])
-    except (TypeError, ValueError):
-        raise ValidationError(
-            "INVALID_TEMPERATURE",
-            "temperature_celsius must be a number"
-        )
+    except (TypeError, ValueError) as e:
+        raise ValidationError("INVALID_TEMPERATURE", "temperature_celsius must be a number") from e
 
     try:
         time = int(data["time_minutes"])
-    except (TypeError, ValueError):
-        raise ValidationError(
-            "INVALID_TIME",
-            "time_minutes must be a number"
-        )
+    except (TypeError, ValueError) as e:
+        raise ValidationError("INVALID_TIME", "time_minutes must be a number") from e
 
     # Extract optional food_type
     food_type = data.get("food_type", "").lower().strip() if data.get("food_type") else None
@@ -146,14 +135,14 @@ def validate_start_cook(data: Dict[str, Any]) -> Dict[str, Any]:
         if len(food_type) > 100:
             raise ValidationError(
                 "FOOD_TYPE_TOO_LONG",
-                f"food_type must be 100 characters or less (got {len(food_type)} characters)"
+                f"food_type must be 100 characters or less (got {len(food_type)} characters)",
             )
 
         # Check for null bytes (security: null bytes can cause issues in some systems)
-        if '\x00' in food_type:
+        if "\x00" in food_type:
             raise ValidationError(
                 "INVALID_FOOD_TYPE",
-                "food_type contains invalid characters (null bytes not allowed)"
+                "food_type contains invalid characters (null bytes not allowed)",
             )
 
     # 3. Range validation - Temperature
@@ -161,27 +150,27 @@ def validate_start_cook(data: Dict[str, Any]) -> Dict[str, Any]:
         raise ValidationError(
             "TEMPERATURE_TOO_LOW",
             f"Temperature {temp}°C is below the safe minimum of {MIN_TEMP_CELSIUS}°C. "
-            f"Food below this temperature is in the bacterial danger zone."
+            f"Food below this temperature is in the bacterial danger zone.",
         )
 
     if temp > MAX_TEMP_CELSIUS:
         raise ValidationError(
             "TEMPERATURE_TOO_HIGH",
             f"Temperature {temp}°C exceeds the safe maximum of {MAX_TEMP_CELSIUS}°C. "
-            f"Water boils at 100°C."
+            f"Water boils at 100°C.",
         )
 
     # 4. Range validation - Time
     if time < MIN_TIME_MINUTES:
         raise ValidationError(
             "TIME_TOO_SHORT",
-            f"Time {time} minutes is below the minimum of {MIN_TIME_MINUTES} minute."
+            f"Time {time} minutes is below the minimum of {MIN_TIME_MINUTES} minute.",
         )
 
     if time > MAX_TIME_MINUTES:
         raise ValidationError(
             "TIME_TOO_LONG",
-            f"Time {time} minutes exceeds the device maximum of {MAX_TIME_MINUTES} minutes."
+            f"Time {time} minutes exceeds the device maximum of {MAX_TIME_MINUTES} minutes.",
         )
 
     # 5. Food safety validation (context-specific)
@@ -191,22 +180,18 @@ def validate_start_cook(data: Dict[str, Any]) -> Dict[str, Any]:
                 "POULTRY_TEMP_UNSAFE",
                 f"Temperature {temp}°C is not safe for poultry. "
                 f"Minimum is {POULTRY_MIN_TEMP}°C with extended time (3+ hours) "
-                f"or {POULTRY_SAFE_TEMP}°C for standard cooking."
+                f"or {POULTRY_SAFE_TEMP}°C for standard cooking.",
             )
 
         if _is_ground_meat(food_type) and temp < GROUND_MEAT_MIN_TEMP:
             raise ValidationError(
                 "GROUND_MEAT_TEMP_UNSAFE",
                 f"Temperature {temp}°C is not safe for ground meat. "
-                f"Minimum is {GROUND_MEAT_MIN_TEMP}°C because bacteria are mixed throughout."
+                f"Minimum is {GROUND_MEAT_MIN_TEMP}°C because bacteria are mixed throughout.",
             )
 
     # Return validated data
-    return {
-        "temperature_celsius": round(temp, 1),
-        "time_minutes": time,
-        "food_type": food_type
-    }
+    return {"temperature_celsius": round(temp, 1), "time_minutes": time, "food_type": food_type}
 
 
 def _is_poultry(food_type: str) -> bool:
@@ -255,7 +240,7 @@ def _is_ground_meat(food_type: str) -> bool:
     return any(kw in food_type for kw in ground_keywords)
 
 
-def validate_device_id(device_id: Optional[str]) -> str:
+def validate_device_id(device_id: str | None) -> str:
     """
     Validate device ID is present and not empty.
 

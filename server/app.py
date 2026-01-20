@@ -8,31 +8,21 @@ and testability.
 Reference: CLAUDE.md Section "Component Responsibilities > app.py"
 """
 
-import logging
 import atexit
-from typing import Optional, Dict, Any
-from flask import Flask, jsonify
+import logging
+from typing import Any
 
-from .config import Config
-from .routes import api
+from flask import Flask
+
 from .anova_client import AnovaWebSocketClient
-from .middleware import (
-    setup_request_logging,
-    register_error_handlers
-)
-from .exceptions import (
-    ValidationError,
-    AnovaAPIError,
-    DeviceOfflineError,
-    AuthenticationError,
-    DeviceBusyError,
-    NoActiveCookError
-)
+from .config import Config
+from .middleware import register_error_handlers, setup_request_logging
+from .routes import api
 
 logger = logging.getLogger(__name__)
 
 
-def create_app(config: Optional[Config] = None) -> Flask:
+def create_app(config: Config | None = None) -> Flask:
     """
     Application factory for creating Flask app instances.
 
@@ -70,9 +60,9 @@ def create_app(config: Optional[Config] = None) -> Flask:
         config = Config.load()
 
     # 3. Store config in app.config for access by routes
-    app.config['ANOVA_CONFIG'] = config
-    app.config['API_KEY'] = config.API_KEY
-    app.config['DEBUG'] = config.DEBUG
+    app.config["ANOVA_CONFIG"] = config
+    app.config["API_KEY"] = config.API_KEY
+    app.config["DEBUG"] = config.DEBUG
 
     # 4. Configure logging
     configure_logging(app)
@@ -81,7 +71,7 @@ def create_app(config: Optional[Config] = None) -> Flask:
     logger.info("Initializing WebSocket connection to Anova...")
     try:
         anova_client = AnovaWebSocketClient(config)
-        app.config['ANOVA_CLIENT'] = anova_client
+        app.config["ANOVA_CLIENT"] = anova_client
         logger.info("WebSocket client initialized successfully")
 
         # CRITICAL FIX: Register shutdown handler for graceful cleanup
@@ -122,20 +112,20 @@ def configure_logging(app: Flask) -> None:
     Reference: CLAUDE.md Section "Code Patterns > 4. Logging Pattern" (lines 439-515)
     """
     # Set logging level based on DEBUG config
-    log_level = logging.DEBUG if app.config.get('DEBUG') else logging.INFO
+    log_level = logging.DEBUG if app.config.get("DEBUG") else logging.INFO
 
     # Configure log format
     logging.basicConfig(
         level=log_level,
-        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-        datefmt='%Y-%m-%d %H:%M:%S'
+        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S",
     )
 
     # Set Flask app logger to same level
     app.logger.setLevel(log_level)
 
 
-def init_app_context(app: Flask, config: Dict[str, Any]) -> None:
+def init_app_context(app: Flask, config: dict[str, Any]) -> None:
     """
     Initialize application context with configuration.
 
@@ -156,7 +146,7 @@ def init_app_context(app: Flask, config: Dict[str, Any]) -> None:
 # ENTRY POINT FOR DEVELOPMENT SERVER
 # ==============================================================================
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     """
     Run development server.
 
@@ -178,17 +168,13 @@ if __name__ == '__main__':
 
     # Create and run the app
     app = create_app()
-    config = app.config['ANOVA_CONFIG']
+    config = app.config["ANOVA_CONFIG"]
 
     print(f"Starting server on {config.HOST}:{config.PORT}")
     print(f"Health check: http://{config.HOST}:{config.PORT}/health")
     print()
 
-    app.run(
-        host=config.HOST,
-        port=config.PORT,
-        debug=config.DEBUG
-    )
+    app.run(host=config.HOST, port=config.PORT, debug=config.DEBUG)
 
 
 # ==============================================================================

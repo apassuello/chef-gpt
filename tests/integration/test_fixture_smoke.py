@@ -7,7 +7,6 @@ and can be used in integration tests.
 Reference: HANDOFF-INTEGRATION-TESTS.md - Phase 1 verification
 """
 
-import pytest
 import responses
 
 
@@ -25,7 +24,7 @@ def test_mock_anova_api_success_fixture_works(client, auth_headers, mock_anova_a
     # Verify by checking we can make a request without errors
 
     # This should NOT raise ConnectionError since mocks are in place
-    response = client.get('/health')
+    response = client.get("/health")
 
     # Health endpoint should work (no auth required)
     assert response.status_code == 200
@@ -42,7 +41,7 @@ def test_mock_anova_api_offline_fixture_works(client, auth_headers, mock_anova_a
     """
     # The fixture should have added offline mocks
     # Health endpoint should still work
-    response = client.get('/health')
+    response = client.get("/health")
     assert response.status_code == 200
 
 
@@ -55,7 +54,7 @@ def test_mock_anova_api_busy_fixture_works(client, auth_headers, mock_anova_api_
     """
     # The fixture should have added busy mocks
     # Health endpoint should still work
-    response = client.get('/health')
+    response = client.get("/health")
     assert response.status_code == 200
 
 

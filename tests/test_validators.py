@@ -14,13 +14,14 @@ Reference: CLAUDE.md lines 825-842 (test case table)
 """
 
 import pytest
-from server.validators import validate_start_cook, _is_poultry, _is_ground_meat
-from server.exceptions import ValidationError
 
+from server.exceptions import ValidationError
+from server.validators import _is_ground_meat, _is_poultry, validate_start_cook
 
 # ==============================================================================
 # TEMPERATURE VALIDATION TESTS
 # ==============================================================================
+
 
 def test_valid_parameters():
     """TC-VAL-01: Valid parameters should pass."""
@@ -67,6 +68,7 @@ def test_temperature_exactly_maximum():
 # TIME VALIDATION TESTS
 # ==============================================================================
 
+
 def test_time_zero():
     """TC-VAL-06: Time of zero should fail."""
     data = {"temperature_celsius": 65.0, "time_minutes": 0}
@@ -101,6 +103,7 @@ def test_time_above_maximum():
 # ==============================================================================
 # FOOD SAFETY VALIDATION TESTS
 # ==============================================================================
+
 
 def test_poultry_temp_unsafe():
     """TC-VAL-10: Chicken at 56°C should fail (below poultry minimum)."""
@@ -138,6 +141,7 @@ def test_ground_meat_temp_safe():
 # TYPE COERCION TESTS
 # ==============================================================================
 
+
 def test_float_time_truncation():
     """TC-VAL-14: Float time should be truncated to integer."""
     data = {"temperature_celsius": 65.0, "time_minutes": 90.7}
@@ -149,6 +153,7 @@ def test_float_time_truncation():
 # ==============================================================================
 # MISSING FIELD TESTS
 # ==============================================================================
+
 
 def test_missing_temperature():
     """TC-VAL-15: Missing temperature should fail."""
@@ -171,6 +176,7 @@ def test_missing_time():
 # ==============================================================================
 # HELPER FUNCTION TESTS
 # ==============================================================================
+
 
 def test_is_poultry_chicken():
     """TC-HELP-01: Test _is_poultry recognizes chicken."""

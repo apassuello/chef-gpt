@@ -47,20 +47,14 @@ FIREBASE_AUTH_SUCCESS = {
     "refreshToken": "mock-refresh-token-xyz789",
     "expiresIn": "3600",
     "localId": "mock-user-id",
-    "email": "test@example.com"
+    "email": "test@example.com",
 }
 
 FIREBASE_AUTH_INVALID_CREDENTIALS = {
     "error": {
         "code": 400,
         "message": "INVALID_PASSWORD",
-        "errors": [
-            {
-                "message": "INVALID_PASSWORD",
-                "domain": "global",
-                "reason": "invalid"
-            }
-        ]
+        "errors": [{"message": "INVALID_PASSWORD", "domain": "global", "reason": "invalid"}],
     }
 }
 
@@ -69,15 +63,10 @@ FIREBASE_TOKEN_REFRESH_SUCCESS = {
     "refresh_token": "mock-refresh-token-xyz789",
     "expires_in": "3600",
     "token_type": "Bearer",
-    "user_id": "mock-user-id"
+    "user_id": "mock-user-id",
 }
 
-FIREBASE_TOKEN_EXPIRED = {
-    "error": {
-        "code": 401,
-        "message": "TOKEN_EXPIRED"
-    }
-}
+FIREBASE_TOKEN_EXPIRED = {"error": {"code": 401, "message": "TOKEN_EXPIRED"}}
 
 
 # ==============================================================================
@@ -92,7 +81,7 @@ DEVICE_STATUS_IDLE = {
     "timer_remaining": None,
     "timer_elapsed": None,
     "device_id": "test-device-123",
-    "firmware_version": "1.2.3"
+    "firmware_version": "1.2.3",
 }
 
 DEVICE_STATUS_PREHEATING = {
@@ -103,7 +92,7 @@ DEVICE_STATUS_PREHEATING = {
     "timer_remaining": None,
     "timer_elapsed": None,
     "device_id": "test-device-123",
-    "firmware_version": "1.2.3"
+    "firmware_version": "1.2.3",
 }
 
 DEVICE_STATUS_COOKING = {
@@ -114,7 +103,7 @@ DEVICE_STATUS_COOKING = {
     "timer_remaining": 45,
     "timer_elapsed": 45,
     "device_id": "test-device-123",
-    "firmware_version": "1.2.3"
+    "firmware_version": "1.2.3",
 }
 
 DEVICE_STATUS_COOKING_ALMOST_DONE = {
@@ -125,7 +114,7 @@ DEVICE_STATUS_COOKING_ALMOST_DONE = {
     "timer_remaining": 5,
     "timer_elapsed": 85,
     "device_id": "test-device-123",
-    "firmware_version": "1.2.3"
+    "firmware_version": "1.2.3",
 }
 
 DEVICE_STATUS_DONE = {
@@ -136,19 +125,12 @@ DEVICE_STATUS_DONE = {
     "timer_remaining": 0,
     "timer_elapsed": 90,
     "device_id": "test-device-123",
-    "firmware_version": "1.2.3"
+    "firmware_version": "1.2.3",
 }
 
-DEVICE_STATUS_OFFLINE_404 = {
-    "error": "Device not found or offline",
-    "code": "DEVICE_NOT_FOUND"
-}
+DEVICE_STATUS_OFFLINE_404 = {"error": "Device not found or offline", "code": "DEVICE_NOT_FOUND"}
 
-DEVICE_STATUS_OFFLINE_FALSE = {
-    "online": False,
-    "state": "unknown",
-    "device_id": "test-device-123"
-}
+DEVICE_STATUS_OFFLINE_FALSE = {"online": False, "state": "unknown", "device_id": "test-device-123"}
 
 
 # ==============================================================================
@@ -162,23 +144,19 @@ START_COOK_SUCCESS = {
     "device_id": "test-device-123",
     "target_temperature": 65.0,
     "timer_duration": 90,
-    "message": "Cook started successfully"
+    "message": "Cook started successfully",
 }
 
 START_COOK_ALREADY_COOKING = {
     "error": "Device already cooking",
     "code": "DEVICE_BUSY",
-    "current_cook": {
-        "cook_id": "cook-xyz789",
-        "target_temp": 65.0,
-        "time_remaining": 45
-    }
+    "current_cook": {"cook_id": "cook-xyz789", "target_temp": 65.0, "time_remaining": 45},
 }
 
 START_COOK_DEVICE_OFFLINE = {
     "error": "Device is offline",
     "code": "DEVICE_OFFLINE",
-    "message": "Please check device WiFi connection"
+    "message": "Please check device WiFi connection",
 }
 
 STOP_COOK_SUCCESS = {
@@ -187,13 +165,13 @@ STOP_COOK_SUCCESS = {
     "device_id": "test-device-123",
     "final_temperature": 65.0,
     "total_time_elapsed": 85,
-    "message": "Cook stopped successfully"
+    "message": "Cook stopped successfully",
 }
 
 STOP_COOK_NOT_COOKING = {
     "error": "No active cook session",
     "code": "NO_ACTIVE_COOK",
-    "current_state": "idle"
+    "current_state": "idle",
 }
 
 
@@ -204,20 +182,20 @@ STOP_COOK_NOT_COOKING = {
 ERROR_UNAUTHORIZED = {
     "error": "Unauthorized",
     "code": "UNAUTHORIZED",
-    "message": "Invalid or expired authentication token"
+    "message": "Invalid or expired authentication token",
 }
 
 ERROR_RATE_LIMITED = {
     "error": "Rate limit exceeded",
     "code": "RATE_LIMITED",
     "message": "Too many requests. Please wait before trying again.",
-    "retry_after": 60
+    "retry_after": 60,
 }
 
 ERROR_INTERNAL_SERVER = {
     "error": "Internal server error",
     "code": "INTERNAL_ERROR",
-    "message": "An unexpected error occurred. Please try again later."
+    "message": "An unexpected error occurred. Please try again later.",
 }
 
 
@@ -225,7 +203,10 @@ ERROR_INTERNAL_SERVER = {
 # CONVENIENCE FUNCTIONS
 # ==============================================================================
 
-def get_device_status_at_temp(current_temp: float, target_temp: float, state: str = "preheating") -> dict:
+
+def get_device_status_at_temp(
+    current_temp: float, target_temp: float, state: str = "preheating"
+) -> dict:
     """
     Generate device status at specific temperature.
 
@@ -245,7 +226,7 @@ def get_device_status_at_temp(current_temp: float, target_temp: float, state: st
         "timer_remaining": 45 if state == "cooking" else None,
         "timer_elapsed": 45 if state == "cooking" else None,
         "device_id": "test-device-123",
-        "firmware_version": "1.2.3"
+        "firmware_version": "1.2.3",
     }
 
 
@@ -267,5 +248,5 @@ def get_start_cook_response(target_temp: float, time_minutes: int) -> dict:
         "device_id": "test-device-123",
         "target_temperature": target_temp,
         "timer_duration": time_minutes,
-        "message": "Cook started successfully"
+        "message": "Cook started successfully",
     }

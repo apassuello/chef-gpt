@@ -16,9 +16,9 @@ Reference: docs/03-component-architecture.md Section 4.4.1 (COMP-CFG-01)
 Reference: WebSocket migration plan Section "Authentication Changes"
 """
 
-import os
 import json
 import logging
+import os
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Self
@@ -130,11 +130,7 @@ class Config:
         # Parse DEBUG env var
         debug = os.environ.get("DEBUG", "").lower() == "true"
 
-        return cls(
-            PERSONAL_ACCESS_TOKEN=pat,
-            API_KEY=api_key,
-            DEBUG=debug
-        )
+        return cls(PERSONAL_ACCESS_TOKEN=pat, API_KEY=api_key, DEBUG=debug)
 
     @classmethod
     def _from_json_file(cls, path: Path) -> Self:
@@ -172,9 +168,7 @@ class Config:
             )
 
         return cls(
-            PERSONAL_ACCESS_TOKEN=pat,
-            API_KEY=data["api_key"],
-            DEBUG=data.get("debug", False)
+            PERSONAL_ACCESS_TOKEN=pat, API_KEY=data["api_key"], DEBUG=data.get("debug", False)
         )
 
     @classmethod
@@ -221,7 +215,7 @@ def load_config():
     return {
         "personal_access_token": config.PERSONAL_ACCESS_TOKEN,
         "api_key": config.API_KEY,
-        "debug": config.DEBUG
+        "debug": config.DEBUG,
     }
 
 
