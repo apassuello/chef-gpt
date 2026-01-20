@@ -26,6 +26,7 @@ Reference: WebSocket migration plan Section "Testing Strategy"
 
 import json
 import queue
+import threading
 from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
 import pytest
@@ -106,17 +107,24 @@ def mock_stop_response_message():
 
 @pytest.fixture
 def mock_status_update_message():
-    """Create a mock status update event message."""
+    """Create a mock status update event message (simulator format)."""
     return json.dumps(
         {
-            "command": "EVENT_APC_STATUS_UPDATE",
+            "command": "EVENT_APC_STATE",
             "payload": {
                 "cookerId": "test-device-123",
-                "state": "cooking",
-                "currentTemperature": 64.8,
-                "targetTemperature": 65.0,
-                "timeRemaining": 2700,  # 45 minutes
-                "timeElapsed": 2700,  # 45 minutes
+                "state": {
+                    "job-status": {
+                        "state": "cooking",
+                        "cook-time-remaining": 2700,  # 45 minutes
+                    },
+                    "temperature-info": {
+                        "water-temperature": 64.8,
+                    },
+                    "job": {
+                        "target-temperature": 65.0,
+                    },
+                },
             },
         }
     )
@@ -227,9 +235,13 @@ def test_handle_device_list_single_device(mock_config, mock_device_list_message)
         client.devices = {}
         client.device_status = {}
         client.selected_device = None
+        client.device_discovered = threading.Event()  # NEW
         client.status_lock = MagicMock()
         client.status_lock.__enter__ = Mock()
         client.status_lock.__exit__ = Mock()
+        client.devices_lock = MagicMock()  # NEW
+        client.devices_lock.__enter__ = Mock()
+        client.devices_lock.__exit__ = Mock()
         client.connected = MagicMock()
         client.connected.set()
 
@@ -257,9 +269,13 @@ def test_handle_device_list_multiple_devices(mock_config):
         client.devices = {}
         client.device_status = {}
         client.selected_device = None
+        client.device_discovered = threading.Event()  # NEW
         client.status_lock = MagicMock()
         client.status_lock.__enter__ = Mock()
         client.status_lock.__exit__ = Mock()
+        client.devices_lock = MagicMock()  # NEW
+        client.devices_lock.__enter__ = Mock()
+        client.devices_lock.__exit__ = Mock()
         client.connected = MagicMock()
 
         # Handle multiple devices
@@ -308,13 +324,12 @@ def test_handle_status_update(mock_config, mock_status_update_message):
         data = json.loads(mock_status_update_message)
         client._handle_status_update(data)
 
-        # Verify status was updated
+        # Verify status was updated (new simulator message format)
         status = client.device_status["test-device-123"]
         assert status["state"] == "cooking"
         assert status["currentTemperature"] == 64.8
         assert status["targetTemperature"] == 65.0
         assert status["timeRemaining"] == 2700
-        assert status["timeElapsed"] == 2700
 
 
 def test_handle_status_update_unknown_device(mock_config):
@@ -537,12 +552,11 @@ def test_start_cook_success(mock_config):
         assert command["payload"]["targetTemperature"] == 65.0
         assert command["payload"]["timer"] == 5400  # 90 minutes in seconds
 
-        # Verify result
-        assert result["success"] is True
+        # Verify result - API spec format
+        assert result["status"] == "started"
         assert result["target_temp_celsius"] == 65.0
         assert result["time_minutes"] == 90
-        assert "cook_id" in result
-        assert "estimated_completion" in result
+        assert "device_id" in result
 
 
 def test_start_cook_device_offline(mock_config):
@@ -675,9 +689,8 @@ def test_stop_cook_success(mock_config):
         command = client.command_queue.get()
         assert command["command"] == "CMD_APC_STOP"
 
-        # Verify result
-        assert result["success"] is True
-        assert result["device_state"] == "idle"
+        # Verify result - API spec format
+        assert result["status"] == "stopped"
         assert result["final_temp_celsius"] == 64.9
 
 
@@ -833,6 +846,101 @@ def test_token_not_in_command_payload(mock_config):
         command_str = json.dumps(command)
         assert "anova-test-token-12345" not in command_str
         assert "token" not in command["payload"]
+
+
+# ==============================================================================
+# DEVICE DISCOVERY TESTS
+# ==============================================================================
+
+
+def test_wait_for_device_success():
+    """Test wait_for_device returns True when device discovered."""
+    config = MagicMock()
+    config.PERSONAL_ACCESS_TOKEN = "test-token"
+    config.ANOVA_WEBSOCKET_URL = "ws://localhost:8000"
+
+    # Create client without starting background thread
+    with patch.object(AnovaWebSocketClient, "_start_background_thread"):
+        client = AnovaWebSocketClient.__new__(AnovaWebSocketClient)
+        client.config = config
+        client.connected = threading.Event()
+        client.device_discovered = threading.Event()
+        client.devices = {}
+        client.selected_device = None
+        client.connected.set()  # Mark as connected
+
+        # Simulate device discovery in background (like real WebSocket would)
+        def discover():
+            import time
+
+            time.sleep(0.1)  # Simulate network delay
+            client.devices["test-device-123"] = {"cookerId": "test-device-123"}
+            client.selected_device = "test-device-123"
+            client.device_discovered.set()
+
+        thread = threading.Thread(target=discover, daemon=True)
+        thread.start()
+
+        # Wait should succeed
+        result = client.wait_for_device(timeout=2.0)
+        assert result is True
+        assert client.selected_device == "test-device-123"
+
+
+def test_wait_for_device_timeout():
+    """Test wait_for_device returns False on timeout."""
+    config = MagicMock()
+    config.PERSONAL_ACCESS_TOKEN = "test-token"
+    config.ANOVA_WEBSOCKET_URL = "ws://localhost:8000"
+
+    # Create client without starting background thread
+    with patch.object(AnovaWebSocketClient, "_start_background_thread"):
+        client = AnovaWebSocketClient.__new__(AnovaWebSocketClient)
+        client.config = config
+        client.connected = threading.Event()
+        client.device_discovered = threading.Event()
+        client.devices = {}
+        client.selected_device = None
+        client.connected.set()  # Mark as connected
+
+        # Don't set event - let it timeout
+        result = client.wait_for_device(timeout=0.5)
+        assert result is False
+        assert client.selected_device is None
+
+
+def test_device_discovered_event_set_on_list():
+    """Test device_discovered event is set when device list handled."""
+    config = MagicMock()
+    config.PERSONAL_ACCESS_TOKEN = "test-token"
+    config.ANOVA_WEBSOCKET_URL = "ws://localhost:8000"
+
+    # Create client without starting background thread
+    with patch.object(AnovaWebSocketClient, "_start_background_thread"):
+        client = AnovaWebSocketClient.__new__(AnovaWebSocketClient)
+        client.config = config
+        client.connected = threading.Event()
+        client.device_discovered = threading.Event()
+        client.devices = {}
+        client.device_status = {}
+        client.selected_device = None
+        client.devices_lock = MagicMock()
+        client.devices_lock.__enter__ = Mock()
+        client.devices_lock.__exit__ = Mock()
+        client.connected.set()  # Mark as connected
+
+        # Simulate receiving device list
+        devices = [
+            {"cookerId": "device-1", "name": "Anova 1", "type": "APCWiFi"},
+            {"cookerId": "device-2", "name": "Anova 2", "type": "APCWiFi"},
+        ]
+
+        client._handle_device_list(devices)
+
+        # Event should be set
+        assert client.device_discovered.is_set()
+        assert len(client.devices) == 2
+        assert client.selected_device == "device-1"  # Auto-selected first
 
 
 # ==============================================================================

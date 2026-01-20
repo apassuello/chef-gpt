@@ -13,15 +13,16 @@ Reference: Plan Phase 2 - E2E Test Infrastructure
 """
 
 import asyncio
+import logging
+import os
 import threading
-import time
-from collections.abc import AsyncGenerator
 from typing import Any
 
 import pytest
-import pytest_asyncio
 from flask import Flask
 from flask.testing import FlaskClient
+
+logger = logging.getLogger(__name__)
 
 from server.anova_client import AnovaWebSocketClient
 from server.config import Config
@@ -41,9 +42,12 @@ class E2EPortManager:
     Manages port allocation for E2E test isolation.
 
     Uses higher port range (29000+) to avoid conflicts with unit tests.
+    Adds process-based offset for parallel test runs across different processes.
     """
 
-    _base_port = 29000
+    # Process-based offset prevents port collision when running tests in parallel
+    # across different pytest-xdist workers or parallel CI jobs
+    _base_port = 29000 + (os.getpid() % 1000) * 10
     _port_offset = 0
     _lock = threading.Lock()
 
@@ -96,20 +100,96 @@ def e2e_sim_config(e2e_ports) -> SimConfig:
     )
 
 
-@pytest_asyncio.fixture
-async def e2e_simulator(e2e_sim_config) -> AsyncGenerator[tuple[AnovaSimulator, ControlAPI], None]:
+class SimulatorThread:
+    """
+    Runs the simulator in a background thread with its own event loop.
+
+    This is necessary because:
+    1. The WebSocket client (AnovaWebSocketClient) runs in its own background thread
+    2. If the simulator runs in pytest-asyncio's event loop, there's a deadlock
+    3. Running simulator in a separate thread allows both to operate independently
+
+    Reference: https://websockets.readthedocs.io/en/stable/faq/asyncio.html
+    "Choosing asyncio to handle concurrency is mutually exclusive with threading"
+    """
+
+    def __init__(self, config: SimConfig):
+        self.config = config
+        self.simulator: AnovaSimulator | None = None
+        self.thread: threading.Thread | None = None
+        self.loop: asyncio.AbstractEventLoop | None = None
+        self.ready = threading.Event()
+        self.error: Exception | None = None
+
+    def start(self):
+        """Start the simulator in a background thread."""
+        self.thread = threading.Thread(target=self._run, daemon=True, name="SimulatorThread")
+        self.thread.start()
+
+        # Wait for simulator to be ready
+        if not self.ready.wait(timeout=10.0):
+            raise RuntimeError("Simulator failed to start within timeout")
+
+        if self.error:
+            raise self.error
+
+    def _run(self):
+        """Run the simulator's event loop in this thread."""
+        try:
+            self.loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(self.loop)
+
+            self.simulator = AnovaSimulator(config=self.config)
+
+            # Start simulator and signal ready
+            self.loop.run_until_complete(self.simulator.start(start_control=True))
+            self.ready.set()
+
+            # Keep running until stopped
+            self.loop.run_forever()
+
+        except Exception as e:
+            logger.error(f"Simulator thread error: {e}")
+            self.error = e
+            self.ready.set()  # Unblock waiter even on error
+        finally:
+            if self.loop:
+                self.loop.close()
+
+    def stop(self):
+        """Stop the simulator and its event loop."""
+        if self.loop and self.simulator:
+            # Schedule stop on the simulator's event loop
+            future = asyncio.run_coroutine_threadsafe(self.simulator.stop(), self.loop)
+            try:
+                future.result(timeout=5.0)
+            except Exception as e:
+                logger.warning(f"Error stopping simulator: {e}")
+
+            # Stop the event loop
+            self.loop.call_soon_threadsafe(self.loop.stop)
+
+        if self.thread and self.thread.is_alive():
+            self.thread.join(timeout=5.0)
+
+
+@pytest.fixture
+def e2e_simulator(e2e_sim_config):
     """
     Running simulator with Control API for E2E tests.
+
+    Runs in a background thread to avoid event loop deadlocks with the
+    WebSocket client which also runs in its own background thread.
 
     Yields:
         Tuple of (simulator, control_api)
     """
-    simulator = AnovaSimulator(config=e2e_sim_config)
-    await simulator.start(start_control=True)
+    sim_thread = SimulatorThread(e2e_sim_config)
+    sim_thread.start()
 
-    yield simulator, simulator.control_api
+    yield sim_thread.simulator, sim_thread.simulator.control_api
 
-    await simulator.stop()
+    sim_thread.stop()
 
 
 # =============================================================================
@@ -159,36 +239,60 @@ def _create_e2e_app_sync(config: Config) -> Flask:
     return app
 
 
-@pytest_asyncio.fixture
-async def e2e_app(e2e_simulator, e2e_server_config) -> AsyncGenerator[Flask, None]:
+@pytest.fixture
+def e2e_app(e2e_simulator, e2e_server_config):
     """
     Flask app with real WebSocket client connected to simulator.
 
-    This fixture:
-    1. Waits for simulator to be ready
-    2. Creates Flask app with real WebSocket client
-    3. WebSocket client connects to local simulator
+    Connection Flow:
+        1. Simulator is already running in background thread (from e2e_simulator fixture)
+        2. Create Flask app → spawns WebSocket client in its own background thread
+        3. Wait for client to connect AND receive device list (up to 10s)
+        4. Yield app for testing
 
-    Yields:
-        Flask app ready for testing
+    Both simulator and client run in separate background threads with their own
+    event loops, avoiding the pytest-asyncio deadlock issue.
+
+    Raises:
+        RuntimeError: If WebSocket client fails to become ready
     """
     simulator, control = e2e_simulator
 
-    # Give simulator a moment to fully initialize
-    await asyncio.sleep(0.1)
+    logger.info(f"Simulator ready on {e2e_server_config.ANOVA_WEBSOCKET_URL}")
 
-    # Create app in sync context (WebSocket client uses threading)
+    # Create Flask app (spawns WebSocket client background thread)
     app = _create_e2e_app_sync(e2e_server_config)
 
-    # Give WebSocket client time to connect and receive device list
-    time.sleep(0.5)
+    # Get client from app config
+    client = app.config.get("ANOVA_CLIENT")
+    if not client:
+        raise RuntimeError("ANOVA_CLIENT not configured in Flask app config")
+
+    # Wait for device discovery (connection timeout handled in client __init__)
+    if not client.wait_for_device(timeout=10.0):
+        # Device discovery failed - provide diagnostic info
+        client.shutdown()
+        raise RuntimeError(
+            f"E2E test setup failed: Device discovery timeout.\n"
+            f"  WebSocket connected: {client.connected.is_set()}\n"
+            f"  Connection error: {client.connection_error}\n"
+            f"  Devices discovered: {len(client.devices)}\n"
+            f"  Selected device: {client.selected_device}\n"
+            f"  Simulator URL: {e2e_server_config.ANOVA_WEBSOCKET_URL}\n"
+            f"  Hint: Check simulator logs for connection errors"
+        )
+
+    logger.info(
+        f"E2E app ready: device={client.selected_device}, "
+        f"devices={len(client.devices)}"
+    )
 
     yield app
 
     # Cleanup: shutdown WebSocket client
-    client = app.config.get("ANOVA_CLIENT")
     if client:
         client.shutdown()
+        logger.debug("WebSocket client shut down")
 
 
 @pytest.fixture
@@ -233,8 +337,8 @@ def control_url(e2e_ports) -> str:
     return f"http://localhost:{e2e_ports['control_port']}"
 
 
-@pytest_asyncio.fixture
-async def reset_simulator(e2e_simulator) -> AsyncGenerator[None, None]:
+@pytest.fixture
+def reset_simulator(e2e_simulator):
     """
     Fixture that resets simulator state before and after each test.
 

@@ -223,6 +223,12 @@ async def test_auth03_websocket_with_firebase_token(auth03_simulator, auth03_con
     # Connect to WebSocket with Firebase token
     url = f"ws://localhost:{auth03_config.ws_port}?token={token}&supportedAccessories=APC"
     async with websockets.connect(url) as ws:
+        # First message: device list
+        msg1 = await asyncio.wait_for(ws.recv(), timeout=2.0)
+        data1 = json.loads(msg1)
+        assert data1["command"] == "EVENT_APC_WIFI_LIST"
+
+        # Second message: state
         msg = await asyncio.wait_for(ws.recv(), timeout=2.0)
         data = json.loads(msg)
         assert data["command"] == "EVENT_APC_STATE"

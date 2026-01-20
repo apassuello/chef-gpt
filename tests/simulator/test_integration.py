@@ -31,7 +31,8 @@ async def test_int01_full_cook_cycle(fast_simulator, fast_config, start_command)
 
     async with websockets.connect(ws_url) as ws:
         # 1. Verify initial IDLE state
-        initial = json.loads(await ws.recv())
+        await ws.recv()  # Device list
+        initial = json.loads(await ws.recv())  # Initial state
         assert initial["command"] == "EVENT_APC_STATE"
         assert initial["payload"]["state"]["job-status"]["state"] == "IDLE"
 
@@ -74,6 +75,7 @@ async def test_int02a_fixture_isolation_first(simulator, simulator_config, start
     ws_url = f"ws://localhost:{simulator_config.ws_port}?token=test-token&supportedAccessories=APC"
 
     async with websockets.connect(ws_url) as ws:
+        await ws.recv()  # Device list
         await ws.recv()  # Initial state
 
         # Start cooking
@@ -91,7 +93,8 @@ async def test_int02b_fixture_isolation_second(simulator, simulator_config):
     ws_url = f"ws://localhost:{simulator_config.ws_port}?token=test-token&supportedAccessories=APC"
 
     async with websockets.connect(ws_url) as ws:
-        initial = json.loads(await ws.recv())
+        await ws.recv()  # Device list
+        initial = json.loads(await ws.recv())  # Initial state
 
         # State should be IDLE (fresh), not PREHEATING from previous test
         assert initial["payload"]["state"]["job-status"]["state"] == "IDLE"

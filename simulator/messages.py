@@ -142,6 +142,34 @@ def build_event_apc_state(state: CookerState) -> dict[str, Any]:
     }
 
 
+def build_event_apc_wifi_list(devices: list[dict]) -> dict[str, Any]:
+    """
+    Build an EVENT_APC_WIFI_LIST message.
+
+    This message is sent on connection to inform clients of available devices.
+    Mimics the real Anova Cloud API device discovery protocol.
+
+    Args:
+        devices: List of device info dicts, each containing:
+            - cookerId (str): Unique device identifier
+            - type (str): Device model (e.g., "APCWiFi")
+            - name (str): Device display name
+            - firmwareVersion (str): Firmware version
+            - online (bool): Device online status
+
+    Returns:
+        EVENT_APC_WIFI_LIST message dict
+
+    Reference:
+        - SIMULATOR-SPECIFICATION.md Section 3.4.2
+        - Real Anova API sends this on connection
+    """
+    return {
+        "command": EVENT_APC_WIFI_LIST,
+        "payload": devices,
+    }
+
+
 # ==============================================================================
 # MESSAGE PARSING
 # ==============================================================================

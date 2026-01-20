@@ -57,7 +57,12 @@ class TestCookLifecycle:
         data = response.get_json()
         assert data["status"] == "started"
         assert data["target_temp_celsius"] == 65.0
-        assert "cook_id" in data
+        assert "device_id" in data  # Per API spec in CLAUDE.md
+
+        # Small delay to allow status broadcast to propagate to client cache
+        import time
+
+        time.sleep(0.2)
 
         # 3. Verify device is now running (preheating or cooking)
         response = e2e_client.get("/status", headers=e2e_auth_headers)
@@ -110,6 +115,11 @@ class TestCookLifecycle:
         )
         assert response.status_code == 200
 
+        # Small delay to allow status broadcast to propagate to client cache
+        import time
+
+        time.sleep(0.2)
+
         # Verify running
         response = e2e_client.get("/status", headers=e2e_auth_headers)
         assert response.status_code == 200
@@ -122,6 +132,9 @@ class TestCookLifecycle:
         data = response.get_json()
         assert data["status"] == "stopped"
         assert "final_temp_celsius" in data
+
+        # Small delay to allow status broadcast to propagate to client cache
+        time.sleep(0.2)
 
         # Verify stopped
         response = e2e_client.get("/status", headers=e2e_auth_headers)
@@ -294,6 +307,32 @@ class TestCookLifecycle:
 @pytest.mark.asyncio
 class TestHealthEndpoint:
     """E2E tests for the health endpoint."""
+
+    def test_fixture_connection_established(self, e2e_app):
+        """
+        Verify WebSocket client is connected and ready before tests run.
+
+        This diagnostic test ensures the fixture setup worked correctly.
+        If this fails, all other E2E tests will fail.
+
+        Checks:
+            - ANOVA_CLIENT is configured in Flask app
+            - WebSocket is connected
+            - Device list was received
+            - At least one device is selected
+        """
+        client = e2e_app.config.get("ANOVA_CLIENT")
+
+        assert client is not None, "ANOVA_CLIENT not configured in Flask app"
+        assert client.connected.is_set(), "WebSocket not connected"
+        assert client.device_discovered.is_set(), "Device list not received"
+        assert len(client.devices) > 0, f"No devices discovered (expected >= 1)"
+        assert client.selected_device is not None, "No device auto-selected"
+
+        print(f"✓ WebSocket client ready:")
+        print(f"  - Connected: {client.connected.is_set()}")
+        print(f"  - Devices: {len(client.devices)}")
+        print(f"  - Selected: {client.selected_device}")
 
     async def test_health_check_no_auth_required(self, e2e_client):
         """Health endpoint should work without authentication."""

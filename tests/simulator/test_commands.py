@@ -122,8 +122,9 @@ class TestStartCommand:
     async def test_cmd01_start_valid_params(self, simulator, ws_url):
         """CMD-01: START with valid params should succeed."""
         async with websockets.connect(ws_url) as ws:
-            # Consume initial state
-            await ws.recv()
+            # Consume initial messages
+            await ws.recv()  # Device list
+            await ws.recv()  # Initial state
 
             # Send START command
             cmd = build_start_command(temp=65.0, timer=5400)
@@ -145,6 +146,7 @@ class TestStartCommand:
     async def test_cmd02_start_temp_too_low(self, simulator, ws_url):
         """CMD-02: START with temp < 40°C should fail."""
         async with websockets.connect(ws_url) as ws:
+            await ws.recv()  # Device list
             await ws.recv()  # Initial state
 
             cmd = build_start_command(temp=35.0)
@@ -160,6 +162,7 @@ class TestStartCommand:
     async def test_cmd03_start_temp_too_high(self, simulator, ws_url):
         """CMD-03: START with temp > 100°C should fail."""
         async with websockets.connect(ws_url) as ws:
+            await ws.recv()  # Device list
             await ws.recv()  # Initial state
 
             cmd = build_start_command(temp=105.0)
@@ -175,6 +178,7 @@ class TestStartCommand:
     async def test_cmd04_start_when_cooking(self, simulator, ws_url):
         """CMD-04: START when already cooking should fail with DEVICE_BUSY."""
         async with websockets.connect(ws_url) as ws:
+            await ws.recv()  # Device list
             await ws.recv()  # Initial state
 
             # Start first cook
@@ -201,6 +205,7 @@ class TestStopCommand:
     async def test_cmd05_stop_when_cooking(self, simulator, ws_url):
         """CMD-05: STOP when cooking should succeed."""
         async with websockets.connect(ws_url) as ws:
+            await ws.recv()  # Device list
             await ws.recv()  # Initial state
 
             # Start cook
@@ -226,6 +231,7 @@ class TestStopCommand:
     async def test_cmd06_stop_when_idle(self, simulator, ws_url):
         """CMD-06: STOP when idle should fail with NO_ACTIVE_COOK."""
         async with websockets.connect(ws_url) as ws:
+            await ws.recv()  # Device list
             await ws.recv()  # Initial state
 
             # Try to stop without active cook
@@ -246,6 +252,7 @@ class TestSetTempCommand:
     async def test_cmd07_set_temp_valid(self, simulator, ws_url):
         """CMD-07: SET_TARGET_TEMP with valid temp should succeed."""
         async with websockets.connect(ws_url) as ws:
+            await ws.recv()  # Device list
             await ws.recv()  # Initial state
 
             # Start cook first
@@ -275,6 +282,7 @@ class TestSetTimerCommand:
     async def test_cmd08_set_timer_valid(self, simulator, ws_url):
         """CMD-08: SET_TIMER with valid timer should succeed."""
         async with websockets.connect(ws_url) as ws:
+            await ws.recv()  # Device list
             await ws.recv()  # Initial state
 
             # Start cook first

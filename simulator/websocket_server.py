@@ -128,6 +128,9 @@ class WebSocketServer:
         """
         from websockets.http11 import Response
 
+        # Log the incoming connection request for debugging
+        logger.info(f"Received connection request: {request.path}")
+
         # Parse query parameters from path
         path = request.path
         parsed = urlparse(path)
@@ -189,16 +192,20 @@ class WebSocketServer:
 
         Lifecycle:
         1. Add to clients set
-        2. Send initial state
-        3. Process messages until disconnect
-        4. Remove from clients set
+        2. Send device list (for discovery)
+        3. Send initial state (device status)
+        4. Process messages until disconnect
+        5. Remove from clients set
         """
         self.clients.add(websocket)
         client_id = id(websocket)
         logger.info(f"Client {client_id} connected")
 
         try:
-            # Send initial state
+            # CHANGED: Send device list FIRST (for discovery)
+            await self._send_device_list(websocket)
+
+            # Then send initial state (device status)
             await self._send_state(websocket)
 
             # Process messages
@@ -276,6 +283,33 @@ class WebSocketServer:
         raw = json.dumps(message)
         self._record_message("outbound", raw)
         await websocket.send(raw)
+
+    async def _send_device_list(self, websocket: ServerConnection):
+        """
+        Send device list to a specific client.
+
+        Called immediately after connection to inform client of available devices.
+        This is the first message sent (before EVENT_APC_STATE).
+
+        Args:
+            websocket: WebSocket connection to send to
+        """
+        from .messages import build_event_apc_wifi_list
+
+        # Build device info from current simulator state
+        device_info = {
+            "cookerId": self.state.cooker_id,
+            "type": self.state.device_type,
+            "name": f"Anova {self.state.device_type}",
+            "firmwareVersion": self.state.firmware_version,
+            "online": True,  # Simulator is always online when connected
+        }
+
+        # Send EVENT_APC_WIFI_LIST with device info
+        event = build_event_apc_wifi_list([device_info])
+        await self._send_message(websocket, event)
+
+        logger.debug(f"Sent device list to client {id(websocket)}: {device_info['cookerId']}")
 
     async def _send_state(self, websocket: ServerConnection):
         """Send current state to a specific client."""

@@ -115,6 +115,7 @@ class AnovaWebSocketClient:
 
         # Connection state
         self.connected = threading.Event()
+        self.device_discovered = threading.Event()  # NEW - signals device list received
         self.connection_error: Exception | None = None
 
         # Thread-safe queues for communication
@@ -148,6 +149,54 @@ class AnovaWebSocketClient:
 
         logger.info("AnovaWebSocketClient initialized successfully")
 
+    def wait_for_device(self, timeout: float = 10.0) -> bool:
+        """
+        Wait for device discovery to complete.
+
+        Blocks until EVENT_APC_WIFI_LIST is received and at least one device
+        is discovered, or timeout expires.
+
+        Args:
+            timeout: Maximum seconds to wait for device discovery
+
+        Returns:
+            True if device discovered within timeout, False if timeout
+
+        Usage:
+            client = AnovaWebSocketClient(config)
+            if not client.wait_for_device(timeout=5.0):
+                raise DeviceOfflineError("No device discovered")
+
+        Note:
+            - Connection timeout is handled in __init__ (30s)
+            - This waits for device discovery after connection succeeds
+            - Typical discovery time: 50-200ms
+            - Timeout is safety net for slow networks or simulator issues
+        """
+        discovered = self.device_discovered.wait(timeout=timeout)
+
+        if discovered:
+            logger.debug(f"Device ready: {self.selected_device}")
+        else:
+            logger.warning(f"Device discovery timeout after {timeout}s")
+
+        return discovered
+
+    def is_connected(self) -> bool:
+        """
+        Check if client is truly connected (not just unblocked from init wait).
+
+        The connected.is_set() flag is set on both:
+        - Successful WebSocket connection
+        - Connection failure (to unblock __init__)
+
+        This method distinguishes between these cases.
+
+        Returns:
+            True only if actually connected with no connection error
+        """
+        return self.connected.is_set() and self.connection_error is None
+
     def _start_background_thread(self):
         """Start background thread running async event loop."""
         self.background_thread = threading.Thread(
@@ -174,6 +223,9 @@ class AnovaWebSocketClient:
     async def _websocket_handler(self):
         """Main WebSocket connection handler with auto-reconnect."""
         url = f"{self.websocket_url}?token={self.token}&supportedAccessories=APC"
+        # Log URL without exposing token (mask all but first 8 chars)
+        safe_url = f"{self.websocket_url}?token={self.token[:8] if len(self.token) > 8 else '***'}...&supportedAccessories=APC"
+        logger.info(f"WebSocket URL: {safe_url}")
 
         retry_count = 0
         max_retries = 3
@@ -235,8 +287,9 @@ class AnovaWebSocketClient:
                         # Status update event
                         self._handle_status_update(data)
 
-                    elif command.startswith("RESPONSE_") or command.startswith("CMD_"):
-                        # CRITICAL FIX: Route response to correct caller using requestId
+                    elif command == "RESPONSE" or command.startswith("RESPONSE_") or command.startswith("CMD_"):
+                        # Route response to correct caller using requestId
+                        # Simulator sends "RESPONSE", real API might send "RESPONSE_*" or echo "CMD_*"
                         request_id = data.get("requestId")
                         if request_id:
                             with self.pending_lock:
@@ -286,14 +339,16 @@ class AnovaWebSocketClient:
 
     def _handle_device_list(self, devices: list):
         """
-        Handle device discovery message.
+        Handle device discovery message (EVENT_APC_WIFI_LIST).
 
-        Stores discovered devices and auto-selects first device.
+        Populates self.devices dict and auto-selects first device.
+        Signals device_discovered event when at least one device found.
 
         Args:
             devices: List of device objects from EVENT_APC_WIFI_LIST
         """
-        with self.status_lock:
+        # FIX: Use devices_lock not status_lock (thread-safety bug fix)
+        with self.devices_lock:
             for device in devices:
                 cooker_id = device.get("cookerId")
                 if cooker_id:
@@ -314,37 +369,61 @@ class AnovaWebSocketClient:
                             "timeElapsed": None,
                         }
 
+            # NEW: Signal that device discovery is complete
+            if len(self.devices) > 0:
+                self.device_discovered.set()
+                logger.debug(f"Device discovery complete: {len(self.devices)} device(s) found")
+
     def _handle_status_update(self, data: dict[str, Any]):
         """
-        Handle device status update event.
+        Handle device status update event (EVENT_APC_STATE).
 
         Updates cached status from real-time events.
+
+        The simulator sends nested payload structure:
+        {
+            "cookerId": "...",
+            "state": {
+                "job-status": {"state": "idle", "cook-time-remaining": 0},
+                "job": {"target-temperature": 65.0},
+                "temperature-info": {"water-temperature": 22.0},
+                ...
+            }
+        }
 
         Args:
             data: Event data with status information
         """
-        # Extract cookerId from event (structure varies by event type)
         payload = data.get("payload", {})
         cooker_id = payload.get("cookerId")
 
         if cooker_id and cooker_id in self.devices:
             with self.status_lock:
-                # Update cached status
-                # Event structure: varies by type, extract relevant fields
-                if "state" in payload:
-                    self.device_status[cooker_id]["state"] = payload["state"]
-                if "currentTemperature" in payload:
-                    self.device_status[cooker_id]["currentTemperature"] = payload[
-                        "currentTemperature"
+                # Extract nested state structure from simulator format
+                state_data = payload.get("state", {})
+
+                # Extract job-status fields (device state, time remaining)
+                job_status = state_data.get("job-status", {})
+                if "state" in job_status:
+                    self.device_status[cooker_id]["state"] = job_status["state"]
+                if "cook-time-remaining" in job_status:
+                    self.device_status[cooker_id]["timeRemaining"] = job_status[
+                        "cook-time-remaining"
                     ]
-                if "targetTemperature" in payload:
-                    self.device_status[cooker_id]["targetTemperature"] = payload[
-                        "targetTemperature"
+
+                # Extract job fields (target temperature, cook time)
+                job = state_data.get("job", {})
+                if "target-temperature" in job:
+                    self.device_status[cooker_id]["targetTemperature"] = job[
+                        "target-temperature"
                     ]
-                if "timeRemaining" in payload:
-                    self.device_status[cooker_id]["timeRemaining"] = payload["timeRemaining"]
-                if "timeElapsed" in payload:
-                    self.device_status[cooker_id]["timeElapsed"] = payload["timeElapsed"]
+
+                # Extract temperature-info fields (current water temperature)
+                temp_info = state_data.get("temperature-info", {})
+                if "water-temperature" in temp_info:
+                    self.device_status[cooker_id]["currentTemperature"] = temp_info[
+                        "water-temperature"
+                    ]
 
                 logger.debug(f"Updated status for {cooker_id}: {self.device_status[cooker_id]}")
 
@@ -487,24 +566,36 @@ class AnovaWebSocketClient:
             self.command_queue.put(command)
             logger.info(f"Starting cook: {temperature_c}°C for {time_minutes} minutes")
 
-            # Wait for response (with timeout) - we use _ to indicate the response
-            # is intentionally unused since we construct our response from inputs
-            _ = response_queue.get(timeout=self.COMMAND_TIMEOUT)
+            # Wait for response (with timeout)
+            response = response_queue.get(timeout=self.COMMAND_TIMEOUT)
 
-            # Generate cook_id from requestId
-            cook_id = command["requestId"]
+            # Check response for errors
+            payload = response.get("payload", {})
+            if payload.get("status") == "error":
+                error_code = payload.get("code", "UNKNOWN_ERROR")
+                error_message = payload.get("message", "Unknown error from device")
+                logger.error(f"Start cook failed: {error_code} - {error_message}")
 
-            # Calculate estimated completion
-            estimated_completion = datetime.now() + timedelta(minutes=time_minutes)
+                # Map error codes to appropriate exceptions
+                if error_code == "DEVICE_BUSY":
+                    raise DeviceBusyError(error_message)
+                elif error_code == "INVALID_TEMPERATURE":
+                    from .exceptions import ValidationError
 
+                    raise ValidationError("INVALID_TEMPERATURE", error_message)
+                elif error_code == "INVALID_TIMER":
+                    from .exceptions import ValidationError
+
+                    raise ValidationError("INVALID_TIMER", error_message)
+                else:
+                    raise AnovaAPIError(error_message, 500)
+
+            # Return response matching API spec (CLAUDE.md Section "API Endpoints Reference")
             return {
-                "success": True,
-                "message": "Cook started successfully",
-                "cook_id": cook_id,
-                "device_state": "preheating",
+                "status": "started",
                 "target_temp_celsius": temperature_c,
                 "time_minutes": time_minutes,
-                "estimated_completion": estimated_completion.isoformat() + "Z",
+                "device_id": self.selected_device,
             }
 
         except queue.Empty:
@@ -569,14 +660,24 @@ class AnovaWebSocketClient:
             self.command_queue.put(command)
             logger.info("Stopping cook")
 
-            # Wait for response (with timeout) - we use _ to indicate the response
-            # is intentionally unused since we construct our response from inputs
-            _ = response_queue.get(timeout=self.COMMAND_TIMEOUT)
+            # Wait for response (with timeout)
+            response = response_queue.get(timeout=self.COMMAND_TIMEOUT)
 
+            # Check response for errors
+            payload = response.get("payload", {})
+            if payload.get("status") == "error":
+                error_code = payload.get("code", "UNKNOWN_ERROR")
+                error_message = payload.get("message", "Unknown error from device")
+                logger.error(f"Stop cook failed: {error_code} - {error_message}")
+
+                if error_code == "NO_ACTIVE_COOK":
+                    raise NoActiveCookError(error_message)
+                else:
+                    raise AnovaAPIError(error_message, 500)
+
+            # Return response matching API spec (CLAUDE.md Section "API Endpoints Reference")
             return {
-                "success": True,
-                "message": "Cook stopped successfully",
-                "device_state": "idle",
+                "status": "stopped",
                 "final_temp_celsius": final_temp,
             }
 
@@ -605,7 +706,8 @@ class AnovaWebSocketClient:
         self.shutdown_requested.set()
 
         # Close WebSocket connection
-        if self.websocket and not self.websocket.closed:
+        # In websockets 15.x, check state instead of 'closed' attribute
+        if self.websocket and self.websocket.state.name != "CLOSED":
             try:
                 # Schedule close on the event loop
                 if self.event_loop and self.event_loop.is_running():

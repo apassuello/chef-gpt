@@ -28,6 +28,33 @@ from simulator.firebase_mock import FirebaseMock
 from simulator.server import AnovaSimulator
 from simulator.types import CookerState, DeviceState, SimulatorConfig
 
+
+# =============================================================================
+# HELPER FUNCTIONS
+# =============================================================================
+
+
+async def consume_initial_messages(ws):
+    """
+    Consume initial messages sent by simulator on connection.
+
+    The simulator sends two messages on connection:
+    1. EVENT_APC_WIFI_LIST (device discovery)
+    2. EVENT_APC_STATE (initial device state)
+
+    This helper consumes both messages so tests can focus on their specific interactions.
+
+    Args:
+        ws: WebSocket connection
+
+    Usage:
+        async with websockets.connect(url) as ws:
+            await consume_initial_messages(ws)
+            # Now ready to send commands
+    """
+    await ws.recv()  # Device list
+    await ws.recv()  # Initial state
+
 # =============================================================================
 # PORT MANAGEMENT
 # =============================================================================
@@ -256,6 +283,7 @@ async def ws_client(simulator, simulator_config) -> AsyncGenerator:
     """
     url = f"ws://localhost:{simulator_config.ws_port}?token=test-token&supportedAccessories=APC"
     ws = await websockets.connect(url)
+    await ws.recv()  # Consume device list
     await ws.recv()  # Consume initial state
     yield ws
     await ws.close()

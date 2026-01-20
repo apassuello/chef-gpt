@@ -177,6 +177,7 @@ async def test_err01_device_goes_offline(err01_setup):
 
     # Connect WebSocket client
     ws = await websockets.connect(ws_url)
+    await ws.recv()  # Device list
     await ws.recv()  # Initial state
 
     # Verify connected
@@ -245,7 +246,8 @@ async def test_err02_water_level_low_warning(err02_setup):
 
     # Connect and verify initial state
     async with websockets.connect(ws_url) as ws:
-        initial = json.loads(await ws.recv())
+        await ws.recv()  # Device list
+        initial = json.loads(await ws.recv())  # Initial state
         assert initial["payload"]["state"]["pin-info"]["water-level-low"] == 0
 
         # Trigger water level low

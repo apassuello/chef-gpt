@@ -68,12 +68,46 @@ class TestWebSocketConnection:
     """Test WebSocket connection handling."""
 
     @pytest.mark.asyncio
+    async def test_device_list_sent_on_connection(self, simulator, ws_url):
+        """Test simulator sends EVENT_APC_WIFI_LIST immediately on connection."""
+        url = ws_url(token="valid-test-token")
+
+        async with websockets.connect(url) as ws:
+            # First message should be device list
+            msg = await asyncio.wait_for(ws.recv(), timeout=2.0)
+            data = json.loads(msg)
+
+            # Verify it's a device list event
+            assert data["command"] == "EVENT_APC_WIFI_LIST"
+            assert "payload" in data
+            assert isinstance(data["payload"], list)
+            assert len(data["payload"]) > 0
+
+            # Verify device info structure
+            device = data["payload"][0]
+            assert "cookerId" in device
+            assert "type" in device
+            assert "name" in device
+            assert device["online"] is True
+            assert device["cookerId"] == simulator.cooker_id
+
+            # Second message should be initial state
+            msg2 = await asyncio.wait_for(ws.recv(), timeout=2.0)
+            data2 = json.loads(msg2)
+            assert data2["command"] == "EVENT_APC_STATE"
+
+    @pytest.mark.asyncio
     async def test_ws01_connect_with_valid_token(self, simulator, ws_url):
         """WS-01: Connect with valid token should succeed."""
         url = ws_url(token="valid-test-token")
 
         async with websockets.connect(url) as ws:
-            # Should receive initial state
+            # First message: device list
+            msg = await asyncio.wait_for(ws.recv(), timeout=5.0)
+            data = json.loads(msg)
+            assert data["command"] == "EVENT_APC_WIFI_LIST"
+
+            # Second message: initial state
             msg = await asyncio.wait_for(ws.recv(), timeout=5.0)
             data = json.loads(msg)
 
@@ -109,8 +143,9 @@ class TestWebSocketConnection:
         url = ws_url(token="valid-test-token")
 
         async with websockets.connect(url) as ws:
-            # Consume initial state
-            await ws.recv()
+            # Consume initial messages (device list + state)
+            await ws.recv()  # Device list
+            await ws.recv()  # State
 
             # Send malformed JSON
             await ws.send("not valid json {{{")
@@ -129,8 +164,9 @@ class TestWebSocketConnection:
         url = ws_url(token="valid-test-token")
 
         async with websockets.connect(url) as ws:
-            # Consume initial state
-            await ws.recv()
+            # Consume initial messages (device list + state)
+            await ws.recv()  # Device list
+            await ws.recv()  # State
 
             # Client count should be 1
             assert len(simulator.ws_server.clients) == 1
@@ -149,6 +185,10 @@ class TestWebSocketInitialState:
         url = ws_url(token="valid-test-token")
 
         async with websockets.connect(url) as ws:
+            # Skip device list (first message)
+            await ws.recv()
+
+            # Get state (second message)
             msg = await asyncio.wait_for(ws.recv(), timeout=5.0)
             data = json.loads(msg)
 
@@ -173,6 +213,10 @@ class TestWebSocketInitialState:
         url = ws_url(token="valid-test-token")
 
         async with websockets.connect(url) as ws:
+            # Skip device list (first message)
+            await ws.recv()
+
+            # Get state (second message)
             msg = await asyncio.wait_for(ws.recv(), timeout=5.0)
             data = json.loads(msg)
 

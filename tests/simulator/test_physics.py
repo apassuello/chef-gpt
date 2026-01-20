@@ -67,14 +67,21 @@ def bc_url(bc_config):
 
 @pytest.mark.asyncio
 async def test_bc01_initial_state_on_connect(bc_simulator, bc_url):
-    """BC-01: Should receive EVENT_APC_STATE immediately on connect."""
+    """BC-01: Should receive initial messages immediately on connect."""
     async with websockets.connect(bc_url) as ws:
-        msg = await asyncio.wait_for(ws.recv(), timeout=2.0)
-        data = json.loads(msg)
+        # First message: device list
+        msg1 = await asyncio.wait_for(ws.recv(), timeout=2.0)
+        data1 = json.loads(msg1)
+        assert data1["command"] == "EVENT_APC_WIFI_LIST"
+        assert "payload" in data1
+        assert isinstance(data1["payload"], list)
 
-        assert data["command"] == "EVENT_APC_STATE"
-        assert "payload" in data
-        assert "state" in data["payload"]
+        # Second message: initial state
+        msg2 = await asyncio.wait_for(ws.recv(), timeout=2.0)
+        data2 = json.loads(msg2)
+        assert data2["command"] == "EVENT_APC_STATE"
+        assert "payload" in data2
+        assert "state" in data2["payload"]
 
 
 @pytest.fixture
@@ -103,7 +110,8 @@ async def test_bc04_state_reflects_current_values(bc04_simulator, bc04_url):
     """BC-04: State should reflect current device values."""
     async with websockets.connect(bc04_url) as ws:
         # Initial state
-        initial = json.loads(await ws.recv())
+        await ws.recv()  # Device list
+        initial = json.loads(await ws.recv())  # Initial state
         state = initial["payload"]["state"]
         assert state["job-status"]["state"] == "IDLE"
 
@@ -154,7 +162,8 @@ def ph01_url(ph01_config):
 async def test_ph01_temperature_increases_during_preheat(ph01_simulator, ph01_url):
     """PH-01: Temperature should increase during preheating."""
     async with websockets.connect(ph01_url) as ws:
-        await ws.recv()  # Initial
+        await ws.recv()  # Device list
+        await ws.recv()  # Initial state
 
         cmd = build_start_command(temp=65.0, timer=600)
         await ws.send(json.dumps(cmd))
@@ -201,7 +210,8 @@ def ph02_url(ph02_config):
 async def test_ph02_preheating_to_cooking_transition(ph02_simulator, ph02_url):
     """PH-02: Should transition PREHEATING→COOKING at target temp."""
     async with websockets.connect(ph02_url) as ws:
-        await ws.recv()
+        await ws.recv()  # Device list
+        await ws.recv()  # Initial state
 
         cmd = build_start_command(temp=45.0, timer=600)  # Low target
         await ws.send(json.dumps(cmd))

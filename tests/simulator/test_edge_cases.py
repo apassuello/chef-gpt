@@ -102,6 +102,7 @@ async def test_prot03_fahrenheit_temperature_handling(prot03_simulator, prot03_c
     ws_url = f"ws://localhost:{prot03_config.ws_port}?token=test-token&supportedAccessories=APC"
 
     async with websockets.connect(ws_url) as ws:
+        await ws.recv()  # Device list
         await ws.recv()  # Initial state
 
         # Send start command with Fahrenheit temperature
@@ -136,6 +137,7 @@ async def test_prot03_fahrenheit_below_minimum(prot03_simulator, prot03_config):
     ws_url = f"ws://localhost:{prot03_config.ws_port}?token=test-token&supportedAccessories=APC"
 
     async with websockets.connect(ws_url) as ws:
+        await ws.recv()  # Device list
         await ws.recv()  # Initial state
 
         # Send start command with temperature below minimum in Fahrenheit
@@ -190,6 +192,7 @@ async def test_cmd01_set_temperature(cmd_simulator, cmd_config):
     ws_url = f"ws://localhost:{cmd_config.ws_port}?token=test-token&supportedAccessories=APC"
 
     async with websockets.connect(ws_url) as ws:
+        await ws.recv()  # Device list
         await ws.recv()  # Initial state
 
         # Send set temperature command
@@ -219,6 +222,7 @@ async def test_cmd01_set_temperature_fahrenheit(cmd_simulator, cmd_config):
     ws_url = f"ws://localhost:{cmd_config.ws_port}?token=test-token&supportedAccessories=APC"
 
     async with websockets.connect(ws_url) as ws:
+        await ws.recv()  # Device list
         await ws.recv()  # Initial state
 
         # Send set temperature command in Fahrenheit (158°F = 70°C)
@@ -248,6 +252,7 @@ async def test_cmd01_set_temperature_invalid(cmd_simulator, cmd_config):
     ws_url = f"ws://localhost:{cmd_config.ws_port}?token=test-token&supportedAccessories=APC"
 
     async with websockets.connect(ws_url) as ws:
+        await ws.recv()  # Device list
         await ws.recv()  # Initial state
 
         # Send invalid temperature
@@ -274,6 +279,7 @@ async def test_cmd02_set_timer(cmd_simulator, cmd_config):
     ws_url = f"ws://localhost:{cmd_config.ws_port}?token=test-token&supportedAccessories=APC"
 
     async with websockets.connect(ws_url) as ws:
+        await ws.recv()  # Device list
         await ws.recv()  # Initial state
 
         # Send set timer command
@@ -303,6 +309,7 @@ async def test_cmd02_set_timer_invalid(cmd_simulator, cmd_config):
     ws_url = f"ws://localhost:{cmd_config.ws_port}?token=test-token&supportedAccessories=APC"
 
     async with websockets.connect(ws_url) as ws:
+        await ws.recv()  # Device list
         await ws.recv()  # Initial state
 
         # Send invalid timer (too long)
@@ -333,6 +340,7 @@ async def test_cmd03_unknown_command(cmd_simulator, cmd_config):
     ws_url = f"ws://localhost:{cmd_config.ws_port}?token=test-token&supportedAccessories=APC"
 
     async with websockets.connect(ws_url) as ws:
+        await ws.recv()  # Device list
         await ws.recv()  # Initial state
 
         # Send unknown command
@@ -385,7 +393,8 @@ async def test_ws01_multiple_concurrent_clients(ws01_simulator, ws01_config):
     clients = []
     for i in range(3):
         ws = await websockets.connect(ws_url)
-        initial = json.loads(await ws.recv())
+        await ws.recv()  # Device list
+        initial = json.loads(await ws.recv())  # Initial state
         assert initial["command"] == "EVENT_APC_STATE"
         clients.append(ws)
 
@@ -451,6 +460,7 @@ async def test_sm02_stop_during_preheating(sm_simulator, sm_config):
     ws_url = f"ws://localhost:{sm_config.ws_port}?token=test-token&supportedAccessories=APC"
 
     async with websockets.connect(ws_url) as ws:
+        await ws.recv()  # Device list
         await ws.recv()  # Initial state
 
         # Start cooking
@@ -505,6 +515,7 @@ async def test_sm03_stop_during_cooking_preserves_temp(sm_simulator, sm_config):
     ws_url = f"ws://localhost:{sm_config.ws_port}?token=test-token&supportedAccessories=APC"
 
     async with websockets.connect(ws_url) as ws:
+        await ws.recv()  # Device list
         await ws.recv()  # Initial state
 
         # Stop cooking
@@ -774,6 +785,7 @@ async def test_stop_when_idle_returns_error(sm_simulator, sm_config):
     ws_url = f"ws://localhost:{sm_config.ws_port}?token=test-token&supportedAccessories=APC"
 
     async with websockets.connect(ws_url) as ws:
+        await ws.recv()  # Device list
         await ws.recv()  # Initial state
 
         # Try to stop when idle
@@ -798,6 +810,7 @@ async def test_start_when_already_cooking_returns_error(sm_simulator, sm_config)
     ws_url = f"ws://localhost:{sm_config.ws_port}?token=test-token&supportedAccessories=APC"
 
     async with websockets.connect(ws_url) as ws:
+        await ws.recv()  # Device list
         await ws.recv()  # Initial state
 
         # Start cooking
