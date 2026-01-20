@@ -6,9 +6,9 @@ Validates that response schemas match the API specification for all endpoints.
 Reference: docs/09-integration-test-specification.md Section 5
 """
 
-import pytest
-import responses
 from datetime import datetime
+
+import responses
 
 
 @responses.activate

@@ -14,14 +14,15 @@ Test cases:
 Reference: docs/SIMULATOR-IMPLEMENTATION-PLAN.md Phase 2
 """
 
-import pytest
-import pytest_asyncio
 import asyncio
 import json
+
+import pytest
+import pytest_asyncio
 import websockets
 
-from simulator.server import AnovaSimulator
 from simulator.config import Config
+from simulator.server import AnovaSimulator
 from simulator.types import generate_request_id
 
 pytestmark = pytest.mark.asyncio(loop_scope="function")

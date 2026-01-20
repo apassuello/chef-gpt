@@ -13,7 +13,6 @@ import logging
 import secrets
 import time
 from dataclasses import dataclass
-from typing import Optional, Tuple
 
 logger = logging.getLogger(__name__)
 
@@ -49,7 +48,7 @@ class TokenManager:
 
     def __init__(
         self,
-        valid_credentials: Optional[dict] = None,
+        valid_credentials: dict | None = None,
         token_expiry: int = TOKEN_EXPIRY_SECONDS,
     ):
         """
@@ -72,7 +71,7 @@ class TokenManager:
         # For test control: force token expiry
         self._force_expired: bool = False
 
-    def authenticate(self, email: str, password: str) -> Tuple[Optional[str], Optional[str], Optional[str]]:
+    def authenticate(self, email: str, password: str) -> tuple[str | None, str | None, str | None]:
         """
         Authenticate with email/password.
 
@@ -114,7 +113,7 @@ class TokenManager:
         logger.info(f"Authentication successful for {email}")
         return id_token, refresh_token, None
 
-    def refresh_token(self, refresh_token: str) -> Tuple[Optional[str], Optional[str]]:
+    def refresh_token(self, refresh_token: str) -> tuple[str | None, str | None]:
         """
         Exchange refresh token for new ID token.
 
@@ -157,7 +156,7 @@ class TokenManager:
         logger.info(f"Token refreshed for {token_info.email}")
         return new_id_token, None
 
-    def validate_token(self, token: str) -> Optional[TokenInfo]:
+    def validate_token(self, token: str) -> TokenInfo | None:
         """
         Validate an ID token.
 

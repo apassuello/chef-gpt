@@ -12,17 +12,17 @@ These tests cover scenarios that weren't covered in the initial test suite:
 Reference: docs/SIMULATOR-SPECIFICATION.md
 """
 
-import pytest
-import pytest_asyncio
 import asyncio
 import json
+
 import aiohttp
+import pytest
+import pytest_asyncio
 import websockets
 
-from simulator.server import AnovaSimulator
-from simulator.control_api import ControlAPI
-from simulator.errors import ErrorSimulator, ErrorType
 from simulator.config import Config
+from simulator.control_api import ControlAPI
+from simulator.server import AnovaSimulator
 from simulator.types import DeviceState
 
 # Unique ports for edge case tests
@@ -570,12 +570,11 @@ async def test_err06_heater_overtemp(err_additional_setup):
     sim.state.job.target_temperature = 65.0
 
     # Trigger heater overtemp
-    async with aiohttp.ClientSession() as session:
-        async with session.post(
-            f"{ctl_url}/trigger-error",
-            json={"error_type": "heater_overtemp"},
-        ) as resp:
-            assert resp.status == 200
+    async with aiohttp.ClientSession() as session, session.post(
+        f"{ctl_url}/trigger-error",
+        json={"error_type": "heater_overtemp"},
+    ) as resp:
+        assert resp.status == 200
 
     # Verify effects
     assert sim.state.job_status.state == DeviceState.IDLE
@@ -596,12 +595,11 @@ async def test_err07_triac_overtemp(err_additional_setup):
     sim.state.job.target_temperature = 65.0
 
     # Trigger triac overtemp
-    async with aiohttp.ClientSession() as session:
-        async with session.post(
-            f"{ctl_url}/trigger-error",
-            json={"error_type": "triac_overtemp"},
-        ) as resp:
-            assert resp.status == 200
+    async with aiohttp.ClientSession() as session, session.post(
+        f"{ctl_url}/trigger-error",
+        json={"error_type": "triac_overtemp"},
+    ) as resp:
+        assert resp.status == 200
 
     # Verify effects
     assert sim.state.job_status.state == DeviceState.IDLE
@@ -621,12 +619,11 @@ async def test_err08_water_leak(err_additional_setup):
     sim.state.job.target_temperature = 65.0
 
     # Trigger water leak
-    async with aiohttp.ClientSession() as session:
-        async with session.post(
-            f"{ctl_url}/trigger-error",
-            json={"error_type": "water_leak"},
-        ) as resp:
-            assert resp.status == 200
+    async with aiohttp.ClientSession() as session, session.post(
+        f"{ctl_url}/trigger-error",
+        json={"error_type": "water_leak"},
+    ) as resp:
+        assert resp.status == 200
 
     # Verify effects
     assert sim.state.job_status.state == DeviceState.IDLE
@@ -671,14 +668,13 @@ async def test_ctl01_set_state_invalid(ctl_setup):
     sim, control, config = ctl_setup
     ctl_url = f"http://localhost:{config.control_port}"
 
-    async with aiohttp.ClientSession() as session:
-        async with session.post(
-            f"{ctl_url}/set-state",
-            json={"state": "INVALID_STATE"},
-        ) as resp:
-            assert resp.status == 400
-            data = await resp.json()
-            assert data["error"] == "INVALID_STATE"
+    async with aiohttp.ClientSession() as session, session.post(
+        f"{ctl_url}/set-state",
+        json={"state": "INVALID_STATE"},
+    ) as resp:
+        assert resp.status == 400
+        data = await resp.json()
+        assert data["error"] == "INVALID_STATE"
 
 
 @pytest.mark.asyncio
@@ -694,12 +690,11 @@ async def test_ctl02_reset_while_cooking(ctl_setup):
     sim.state.temperature_info.water_temperature = 65.0
 
     # Reset
-    async with aiohttp.ClientSession() as session:
-        async with session.post(f"{ctl_url}/reset") as resp:
-            assert resp.status == 200
-            data = await resp.json()
-            assert data["status"] == "reset"
-            assert data["state"] == "IDLE"
+    async with aiohttp.ClientSession() as session, session.post(f"{ctl_url}/reset") as resp:
+        assert resp.status == 200
+        data = await resp.json()
+        assert data["status"] == "reset"
+        assert data["state"] == "IDLE"
 
     # Verify state reset
     assert sim.state.job_status.state == DeviceState.IDLE
@@ -715,35 +710,32 @@ async def test_ctl03_time_scale_limits(ctl_setup):
     ctl_url = f"http://localhost:{config.control_port}"
 
     # Test negative time_scale
-    async with aiohttp.ClientSession() as session:
-        async with session.post(
-            f"{ctl_url}/set-time-scale",
-            json={"time_scale": -1.0},
-        ) as resp:
-            assert resp.status == 400
-            data = await resp.json()
-            assert data["error"] == "INVALID_TIME_SCALE"
+    async with aiohttp.ClientSession() as session, session.post(
+        f"{ctl_url}/set-time-scale",
+        json={"time_scale": -1.0},
+    ) as resp:
+        assert resp.status == 400
+        data = await resp.json()
+        assert data["error"] == "INVALID_TIME_SCALE"
 
     # Test zero time_scale
-    async with aiohttp.ClientSession() as session:
-        async with session.post(
-            f"{ctl_url}/set-time-scale",
-            json={"time_scale": 0},
-        ) as resp:
-            assert resp.status == 400
-            data = await resp.json()
-            assert data["error"] == "INVALID_TIME_SCALE"
+    async with aiohttp.ClientSession() as session, session.post(
+        f"{ctl_url}/set-time-scale",
+        json={"time_scale": 0},
+    ) as resp:
+        assert resp.status == 400
+        data = await resp.json()
+        assert data["error"] == "INVALID_TIME_SCALE"
 
     # Test valid time_scale
-    async with aiohttp.ClientSession() as session:
-        async with session.post(
-            f"{ctl_url}/set-time-scale",
-            json={"time_scale": 120.0},
-        ) as resp:
-            assert resp.status == 200
-            data = await resp.json()
-            assert data["status"] == "updated"
-            assert data["time_scale"] == 120.0
+    async with aiohttp.ClientSession() as session, session.post(
+        f"{ctl_url}/set-time-scale",
+        json={"time_scale": 120.0},
+    ) as resp:
+        assert resp.status == 200
+        data = await resp.json()
+        assert data["status"] == "updated"
+        assert data["time_scale"] == 120.0
 
     # Verify time_scale updated
     assert sim.config.time_scale == 120.0

@@ -14,9 +14,10 @@ Reference: docs/SIMULATOR-SPECIFICATION.md Section 8
 import asyncio
 import logging
 import random
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Optional, List, Callable, TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 
 if TYPE_CHECKING:
     from .server import AnovaSimulator
@@ -44,7 +45,7 @@ class ErrorConfig:
 
     error_type: ErrorType
     enabled: bool = False
-    duration: Optional[float] = None  # Auto-clear after duration (seconds)
+    duration: float | None = None  # Auto-clear after duration (seconds)
 
     # Latency-specific
     latency_ms: int = 0
@@ -67,8 +68,8 @@ class ErrorSimulator:
     _errors: dict = field(default_factory=dict)
 
     # Callbacks for when errors are triggered/cleared
-    _on_error_triggered: List[Callable] = field(default_factory=list)
-    _on_error_cleared: List[Callable] = field(default_factory=list)
+    _on_error_triggered: list[Callable] = field(default_factory=list)
+    _on_error_cleared: list[Callable] = field(default_factory=list)
 
     # Tasks for auto-clearing errors
     _clear_tasks: dict = field(default_factory=dict)
@@ -81,7 +82,7 @@ class ErrorSimulator:
     async def trigger_error(
         self,
         error_type: ErrorType,
-        duration: Optional[float] = None,
+        duration: float | None = None,
         **kwargs,
     ) -> dict:
         """
@@ -168,7 +169,7 @@ class ErrorSimulator:
         """Check if an error is currently active."""
         return self._errors[error_type].enabled
 
-    def get_active_errors(self) -> List[ErrorType]:
+    def get_active_errors(self) -> list[ErrorType]:
         """Get list of currently active errors."""
         return [
             error_type

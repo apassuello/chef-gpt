@@ -6,11 +6,11 @@ Tests complete workflows using the shared fixtures from conftest.py.
 Reference: docs/SIMULATOR-IMPLEMENTATION-PLAN.md Phase 8
 """
 
-import pytest
-import pytest_asyncio
 import asyncio
 import json
+
 import aiohttp
+import pytest
 import websockets
 
 from simulator.types import DeviceState

@@ -7,9 +7,9 @@ to create properly formatted messages.
 Reference: docs/SIMULATOR-SPECIFICATION.md Section 3
 """
 
-from typing import Dict, Any, Optional
-from .types import CookerState, generate_request_id
+from typing import Any
 
+from .types import CookerState
 
 # ==============================================================================
 # COMMAND TYPES (Client → Server)
@@ -70,9 +70,9 @@ class ErrorCode:
 def build_response(
     request_id: str,
     status: str = "ok",
-    error_code: Optional[str] = None,
-    error_message: Optional[str] = None,
-) -> Dict[str, Any]:
+    error_code: str | None = None,
+    error_message: str | None = None,
+) -> dict[str, Any]:
     """
     Build a RESPONSE message.
 
@@ -87,7 +87,7 @@ def build_response(
 
     Reference: SIMULATOR-SPECIFICATION.md Section 3.3.1
     """
-    payload: Dict[str, Any] = {"status": status}
+    payload: dict[str, Any] = {"status": status}
 
     if status == "error":
         if error_code:
@@ -102,7 +102,7 @@ def build_response(
     }
 
 
-def build_success_response(request_id: str) -> Dict[str, Any]:
+def build_success_response(request_id: str) -> dict[str, Any]:
     """Build a successful RESPONSE message."""
     return build_response(request_id, status="ok")
 
@@ -111,7 +111,7 @@ def build_error_response(
     request_id: str,
     error_code: str,
     message: str,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Build an error RESPONSE message."""
     return build_response(
         request_id,
@@ -121,7 +121,7 @@ def build_error_response(
     )
 
 
-def build_event_apc_state(state: CookerState) -> Dict[str, Any]:
+def build_event_apc_state(state: CookerState) -> dict[str, Any]:
     """
     Build an EVENT_APC_STATE message.
 
@@ -143,7 +143,7 @@ def build_event_apc_state(state: CookerState) -> Dict[str, Any]:
 # MESSAGE PARSING
 # ==============================================================================
 
-def parse_command(message: Dict[str, Any]) -> tuple[str, str, Dict[str, Any]]:
+def parse_command(message: dict[str, Any]) -> tuple[str, str, dict[str, Any]]:
     """
     Parse an incoming command message.
 
@@ -173,7 +173,7 @@ def parse_command(message: Dict[str, Any]) -> tuple[str, str, Dict[str, Any]]:
     return command, message["requestId"], message["payload"]
 
 
-def validate_start_payload(payload: Dict[str, Any]) -> tuple[str, float, str, int]:
+def validate_start_payload(payload: dict[str, Any]) -> tuple[str, float, str, int]:
     """
     Validate CMD_APC_START payload.
 
@@ -199,7 +199,7 @@ def validate_start_payload(payload: Dict[str, Any]) -> tuple[str, float, str, in
     return cooker_id, target_temp, unit, timer
 
 
-def validate_stop_payload(payload: Dict[str, Any]) -> str:
+def validate_stop_payload(payload: dict[str, Any]) -> str:
     """
     Validate CMD_APC_STOP payload.
 
@@ -211,7 +211,7 @@ def validate_stop_payload(payload: Dict[str, Any]) -> str:
     return payload["cookerId"]
 
 
-def validate_set_temp_payload(payload: Dict[str, Any]) -> tuple[str, float, str]:
+def validate_set_temp_payload(payload: dict[str, Any]) -> tuple[str, float, str]:
     """
     Validate CMD_APC_SET_TARGET_TEMP payload.
 
@@ -226,7 +226,7 @@ def validate_set_temp_payload(payload: Dict[str, Any]) -> tuple[str, float, str]
     return payload["cookerId"], float(payload["targetTemperature"]), payload["unit"]
 
 
-def validate_set_timer_payload(payload: Dict[str, Any]) -> tuple[str, int]:
+def validate_set_timer_payload(payload: dict[str, Any]) -> tuple[str, int]:
     """
     Validate CMD_APC_SET_TIMER payload.
 

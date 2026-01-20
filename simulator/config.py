@@ -8,7 +8,7 @@ Reference: docs/SIMULATOR-SPECIFICATION.md Section 10
 
 import os
 from dataclasses import dataclass, field
-from typing import List, Optional
+
 import yaml
 
 
@@ -50,8 +50,8 @@ class Config:
     firmware_version: str = "3.3.01"
 
     # Auth
-    valid_tokens: List[str] = field(default_factory=lambda: ["valid-test-token"])
-    expired_tokens: List[str] = field(default_factory=lambda: ["expired-test-token"])
+    valid_tokens: list[str] = field(default_factory=lambda: ["valid-test-token"])
+    expired_tokens: list[str] = field(default_factory=lambda: ["expired-test-token"])
 
     # Firebase mock credentials (email -> password mapping)
     firebase_credentials: dict = field(default_factory=lambda: {
@@ -98,7 +98,7 @@ class Config:
         Returns:
             Config instance
         """
-        with open(filepath, 'r') as f:
+        with open(filepath) as f:
             data = yaml.safe_load(f)
 
         sim_config = data.get("simulator", {})
@@ -128,7 +128,7 @@ class Config:
         )
 
     @classmethod
-    def load(cls, config_file: Optional[str] = None) -> "Config":
+    def load(cls, config_file: str | None = None) -> "Config":
         """
         Load configuration from file (if exists) with env overrides.
 

@@ -7,7 +7,6 @@ busy states, and authentication failures.
 Reference: docs/09-integration-test-specification.md Section 3.2
 """
 
-import pytest
 import responses
 
 

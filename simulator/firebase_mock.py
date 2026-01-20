@@ -8,10 +8,8 @@ Provides mock endpoints for Firebase authentication:
 Reference: docs/SIMULATOR-SPECIFICATION.md Section 2
 """
 
-import asyncio
 import json
 import logging
-from typing import Optional
 
 from aiohttp import web
 
@@ -28,7 +26,7 @@ class FirebaseMock:
     Implements the Firebase REST API endpoints for token operations.
     """
 
-    def __init__(self, config: Config, token_manager: Optional[TokenManager] = None):
+    def __init__(self, config: Config, token_manager: TokenManager | None = None):
         """
         Initialize Firebase mock.
 
@@ -42,9 +40,9 @@ class FirebaseMock:
             token_expiry=config.token_expiry,
         )
 
-        self._app: Optional[web.Application] = None
-        self._runner: Optional[web.AppRunner] = None
-        self._site: Optional[web.TCPSite] = None
+        self._app: web.Application | None = None
+        self._runner: web.AppRunner | None = None
+        self._site: web.TCPSite | None = None
         self._running = False
 
     async def start(self, host: str = "localhost"):

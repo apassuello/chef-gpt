@@ -9,7 +9,6 @@ Tests the device state machine transitions:
 Reference: docs/09-integration-test-specification.md Section 4
 """
 
-import pytest
 import responses
 
 

@@ -4,17 +4,18 @@ Tests for Firebase authentication mock (Phase 5: CP-05).
 Reference: docs/SIMULATOR-IMPLEMENTATION-PLAN.md Phase 5
 """
 
-import pytest
-import pytest_asyncio
 import asyncio
 import json
+
 import aiohttp
+import pytest
+import pytest_asyncio
 import websockets
 
 from simulator.auth import TokenManager
+from simulator.config import Config
 from simulator.firebase_mock import FirebaseMock
 from simulator.server import AnovaSimulator
-from simulator.config import Config
 
 # Note: Only async tests should be marked with @pytest.mark.asyncio
 

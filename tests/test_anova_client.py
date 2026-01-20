@@ -14,20 +14,22 @@ Tests cover:
 Reference: CLAUDE.md Section "Testing Strategy > Mocking Anova API"
 """
 
-import pytest
-import responses
-import requests
 import os
 from datetime import datetime, timedelta
 from unittest.mock import patch
+
+import pytest
+import requests
+import responses
+
 from server.anova_client import AnovaClient
 from server.config import Config
 from server.exceptions import (
-    DeviceOfflineError,
+    AnovaAPIError,
     AuthenticationError,
     DeviceBusyError,
+    DeviceOfflineError,
     NoActiveCookError,
-    AnovaAPIError
 )
 
 

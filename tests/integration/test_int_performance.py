@@ -10,7 +10,7 @@ Reference: docs/09-integration-test-specification.md Section 7
 """
 
 import time
-import pytest
+
 import responses
 
 

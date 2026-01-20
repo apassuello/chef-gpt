@@ -15,14 +15,15 @@ Reference: docs/05-api-specification.md
 """
 
 import logging
-from flask import Blueprint, request, jsonify, current_app
-from typing import Dict, Any, Tuple
+from datetime import UTC
+from typing import Any
 
-from .middleware import require_api_key
-from .validators import validate_start_cook
+from flask import Blueprint, current_app, jsonify, request
+
 from .anova_client import AnovaClient
 from .config import Config
-from .exceptions import ValidationError, AnovaAPIError
+from .middleware import require_api_key
+from .validators import validate_start_cook
 
 logger = logging.getLogger(__name__)
 
@@ -35,7 +36,7 @@ api = Blueprint('api', __name__)
 # ==============================================================================
 
 @api.route('/health', methods=['GET'])
-def health() -> Tuple[Dict[str, Any], int]:
+def health() -> tuple[dict[str, Any], int]:
     """
     Health check endpoint.
 
@@ -57,12 +58,12 @@ def health() -> Tuple[Dict[str, Any], int]:
     Reference: CLAUDE.md Section "API Endpoints Reference > GET /health" (lines 1028-1039)
     Reference: docs/05-api-specification.md lines 278-302
     """
-    from datetime import datetime, timezone
+    from datetime import datetime
 
     return jsonify({
         "status": "ok",
         "version": "1.0.0",
-        "timestamp": datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z')
+        "timestamp": datetime.now(UTC).isoformat().replace('+00:00', 'Z')
     }), 200
 
 
@@ -72,7 +73,7 @@ def health() -> Tuple[Dict[str, Any], int]:
 
 @api.route('/start-cook', methods=['POST'])
 @require_api_key
-def start_cook() -> Tuple[Dict[str, Any], int]:
+def start_cook() -> tuple[dict[str, Any], int]:
     """
     Start a cooking session.
 
@@ -130,7 +131,7 @@ def start_cook() -> Tuple[Dict[str, Any], int]:
 
 @api.route('/status', methods=['GET'])
 @require_api_key
-def get_status() -> Tuple[Dict[str, Any], int]:
+def get_status() -> tuple[dict[str, Any], int]:
     """
     Get current cooking status.
 
@@ -167,7 +168,7 @@ def get_status() -> Tuple[Dict[str, Any], int]:
 
 @api.route('/stop-cook', methods=['POST'])
 @require_api_key
-def stop_cook() -> Tuple[Dict[str, Any], int]:
+def stop_cook() -> tuple[dict[str, Any], int]:
     """
     Stop the current cooking session.
 

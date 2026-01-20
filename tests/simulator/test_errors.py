@@ -4,18 +4,18 @@ Tests for error simulation (Phase 7: CP-07).
 Reference: docs/SIMULATOR-IMPLEMENTATION-PLAN.md Phase 7
 """
 
-import pytest
-import pytest_asyncio
 import asyncio
 import json
-import aiohttp
-import websockets
-from websockets.exceptions import ConnectionClosedError
 
-from simulator.server import AnovaSimulator
+import aiohttp
+import pytest
+import pytest_asyncio
+import websockets
+
+from simulator.config import Config
 from simulator.control_api import ControlAPI
 from simulator.errors import ErrorSimulator, ErrorType
-from simulator.config import Config
+from simulator.server import AnovaSimulator
 from simulator.types import DeviceState
 
 # Note: Only async tests should be marked with @pytest.mark.asyncio
@@ -183,14 +183,13 @@ async def test_err01_device_goes_offline(err01_setup):
     assert len(sim.ws_server.clients) == 1
 
     # Trigger device offline via API
-    async with aiohttp.ClientSession() as session:
-        async with session.post(
-            f"{ctl_url}/trigger-error",
-            json={"error_type": "device_offline"},
-        ) as resp:
-            assert resp.status == 200
-            data = await resp.json()
-            assert data["status"] == "triggered"
+    async with aiohttp.ClientSession() as session, session.post(
+        f"{ctl_url}/trigger-error",
+        json={"error_type": "device_offline"},
+    ) as resp:
+        assert resp.status == 200
+        data = await resp.json()
+        assert data["status"] == "triggered"
 
     # Wait for disconnect
     await asyncio.sleep(0.1)
@@ -247,12 +246,11 @@ async def test_err02_water_level_low_warning(err02_setup):
         assert initial["payload"]["state"]["pin-info"]["water-level-low"] == 0
 
         # Trigger water level low
-        async with aiohttp.ClientSession() as session:
-            async with session.post(
-                f"{ctl_url}/trigger-error",
-                json={"error_type": "water_level_low"},
-            ) as resp:
-                assert resp.status == 200
+        async with aiohttp.ClientSession() as session, session.post(
+            f"{ctl_url}/trigger-error",
+            json={"error_type": "water_level_low"},
+        ) as resp:
+            assert resp.status == 200
 
         # Should receive state update with water-level-low=1
         updated = json.loads(await ws.recv())
@@ -302,12 +300,11 @@ async def test_err03_water_level_critical_stops_cooking(err03_setup):
     sim.state.job.target_temperature = 65.0
 
     # Trigger water level critical
-    async with aiohttp.ClientSession() as session:
-        async with session.post(
-            f"{ctl_url}/trigger-error",
-            json={"error_type": "water_level_critical"},
-        ) as resp:
-            assert resp.status == 200
+    async with aiohttp.ClientSession() as session, session.post(
+        f"{ctl_url}/trigger-error",
+        json={"error_type": "water_level_critical"},
+    ) as resp:
+        assert resp.status == 200
 
     # Verify cooking stopped
     assert sim.state.job_status.state == DeviceState.IDLE
@@ -328,14 +325,13 @@ async def test_err04_network_latency(error_setup):
     ctl_url = f"http://localhost:{config.control_port}"
 
     # Trigger network latency
-    async with aiohttp.ClientSession() as session:
-        async with session.post(
-            f"{ctl_url}/trigger-error",
-            json={"error_type": "network_latency", "latency_ms": 500},
-        ) as resp:
-            assert resp.status == 200
-            data = await resp.json()
-            assert data["latency_ms"] == 500
+    async with aiohttp.ClientSession() as session, session.post(
+        f"{ctl_url}/trigger-error",
+        json={"error_type": "network_latency", "latency_ms": 500},
+    ) as resp:
+        assert resp.status == 200
+        data = await resp.json()
+        assert data["latency_ms"] == 500
 
     # Verify latency is set
     assert control.error_simulator.get_latency() == 0.5
@@ -354,14 +350,13 @@ async def test_err05_intermittent_failures(error_setup):
     ctl_url = f"http://localhost:{config.control_port}"
 
     # Trigger intermittent failures with 50% rate
-    async with aiohttp.ClientSession() as session:
-        async with session.post(
-            f"{ctl_url}/trigger-error",
-            json={"error_type": "intermittent_failure", "failure_rate": 0.5},
-        ) as resp:
-            assert resp.status == 200
-            data = await resp.json()
-            assert data["failure_rate"] == 0.5
+    async with aiohttp.ClientSession() as session, session.post(
+        f"{ctl_url}/trigger-error",
+        json={"error_type": "intermittent_failure", "failure_rate": 0.5},
+    ) as resp:
+        assert resp.status == 200
+        data = await resp.json()
+        assert data["failure_rate"] == 0.5
 
     # Verify some commands would fail (statistical test)
     failures = sum(control.error_simulator.should_fail_command() for _ in range(100))
@@ -434,14 +429,13 @@ async def test_invalid_error_type(error_setup):
 
     ctl_url = f"http://localhost:{config.control_port}"
 
-    async with aiohttp.ClientSession() as session:
-        async with session.post(
-            f"{ctl_url}/trigger-error",
-            json={"error_type": "invalid_error"},
-        ) as resp:
-            assert resp.status == 400
-            data = await resp.json()
-            assert data["error"] == "INVALID_ERROR_TYPE"
+    async with aiohttp.ClientSession() as session, session.post(
+        f"{ctl_url}/trigger-error",
+        json={"error_type": "invalid_error"},
+    ) as resp:
+        assert resp.status == 400
+        data = await resp.json()
+        assert data["error"] == "INVALID_ERROR_TYPE"
 
 
 @pytest.mark.asyncio
@@ -455,12 +449,11 @@ async def test_motor_stuck_error(error_setup):
     sim.state.motor_info.rpm = 1200
 
     # Trigger motor stuck
-    async with aiohttp.ClientSession() as session:
-        async with session.post(
-            f"{ctl_url}/trigger-error",
-            json={"error_type": "motor_stuck"},
-        ) as resp:
-            assert resp.status == 200
+    async with aiohttp.ClientSession() as session, session.post(
+        f"{ctl_url}/trigger-error",
+        json={"error_type": "motor_stuck"},
+    ) as resp:
+        assert resp.status == 200
 
     # Verify state
     assert sim.state.pin_info.motor_stuck == 1

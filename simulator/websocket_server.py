@@ -15,24 +15,21 @@ Reference: docs/SIMULATOR-SPECIFICATION.md Section 3
 import asyncio
 import json
 import logging
-from typing import Dict, Set, Optional, Callable, Any
-from urllib.parse import urlparse, parse_qs
+from collections.abc import Callable
+from typing import Any
+from urllib.parse import parse_qs, urlparse
+
 import websockets
-from websockets.asyncio.server import serve, ServerConnection
+from websockets.asyncio.server import ServerConnection, serve
 
 from .config import Config
-from .types import CookerState, DeviceState
 from .messages import (
-    parse_command,
-    build_success_response,
+    ErrorCode,
     build_error_response,
     build_event_apc_state,
-    ErrorCode,
-    CMD_APC_START,
-    CMD_APC_STOP,
-    CMD_APC_SET_TARGET_TEMP,
-    CMD_APC_SET_TIMER,
+    parse_command,
 )
+from .types import CookerState, DeviceState
 
 logger = logging.getLogger(__name__)
 
@@ -59,13 +56,13 @@ class WebSocketServer:
         """
         self.config = config
         self.state = state
-        self.clients: Set[ServerConnection] = set()
+        self.clients: set[ServerConnection] = set()
         self.server = None
         self._running = False
-        self._broadcast_task: Optional[asyncio.Task] = None
+        self._broadcast_task: asyncio.Task | None = None
 
         # Command handlers (will be set by device module)
-        self._command_handlers: Dict[str, Callable] = {}
+        self._command_handlers: dict[str, Callable] = {}
 
         # Message history for debugging
         self.message_history: list = []
@@ -268,7 +265,7 @@ class WebSocketServer:
             )
             await self._send_message(websocket, response)
 
-    async def _send_message(self, websocket: ServerConnection, message: Dict[str, Any]):
+    async def _send_message(self, websocket: ServerConnection, message: dict[str, Any]):
         """Send a message to a specific client."""
         raw = json.dumps(message)
         self._record_message("outbound", raw)

@@ -16,12 +16,14 @@ Reference: CLAUDE.md Section "Code Patterns > 4. Logging Pattern"
 """
 
 import hmac
+import logging
 import os
 import time
-import logging
+from collections.abc import Callable
 from functools import wraps
-from typing import Callable, Any
-from flask import request, jsonify, g, Flask
+from typing import Any
+
+from flask import Flask, g, jsonify, request
 
 logger = logging.getLogger(__name__)
 
@@ -231,12 +233,12 @@ def register_error_handlers(app: Flask) -> None:
     Reference: CLAUDE.md Section "Code Patterns > 1. Error Handling Pattern" (lines 207-233)
     """
     from .exceptions import (
-        ValidationError,
         AnovaAPIError,
-        DeviceOfflineError,
         AuthenticationError,
         DeviceBusyError,
-        NoActiveCookError
+        DeviceOfflineError,
+        NoActiveCookError,
+        ValidationError,
     )
 
     @app.errorhandler(ValidationError)

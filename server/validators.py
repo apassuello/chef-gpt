@@ -16,9 +16,9 @@ Food Safety Rules: CLAUDE.md Section "Food Safety Rules"
 Specification: docs/03-component-architecture.md Section 4.2.1
 """
 
-from typing import Any, Dict, Optional
-from .exceptions import ValidationError
+from typing import Any
 
+from .exceptions import ValidationError
 
 # ==============================================================================
 # FOOD SAFETY CONSTANTS
@@ -51,7 +51,7 @@ DANGER_ZONE_MAX_HOURS = 4  # Maximum time allowed in danger zone
 # VALIDATION FUNCTIONS
 # ==============================================================================
 
-def validate_start_cook(data: Dict[str, Any]) -> Dict[str, Any]:
+def validate_start_cook(data: dict[str, Any]) -> dict[str, Any]:
     """
     Validate parameters for starting a cook.
 
@@ -123,19 +123,19 @@ def validate_start_cook(data: Dict[str, Any]) -> Dict[str, Any]:
     # 2. Type validation with coercion
     try:
         temp = float(data["temperature_celsius"])
-    except (TypeError, ValueError):
+    except (TypeError, ValueError) as e:
         raise ValidationError(
             "INVALID_TEMPERATURE",
             "temperature_celsius must be a number"
-        )
+        ) from e
 
     try:
         time = int(data["time_minutes"])
-    except (TypeError, ValueError):
+    except (TypeError, ValueError) as e:
         raise ValidationError(
             "INVALID_TIME",
             "time_minutes must be a number"
-        )
+        ) from e
 
     # Extract optional food_type
     food_type = data.get("food_type", "").lower().strip() if data.get("food_type") else None
@@ -255,7 +255,7 @@ def _is_ground_meat(food_type: str) -> bool:
     return any(kw in food_type for kw in ground_keywords)
 
 
-def validate_device_id(device_id: Optional[str]) -> str:
+def validate_device_id(device_id: str | None) -> str:
     """
     Validate device ID is present and not empty.
 

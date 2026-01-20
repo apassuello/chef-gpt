@@ -15,16 +15,15 @@ Provides HTTP endpoints for test setup and state inspection:
 Reference: docs/SIMULATOR-SPECIFICATION.md Section 9
 """
 
-import asyncio
 import json
 import logging
-from typing import Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING
 
 from aiohttp import web
 
 from .config import Config
-from .types import DeviceState
 from .errors import ErrorSimulator, ErrorType
+from .types import DeviceState
 
 if TYPE_CHECKING:
     from .server import AnovaSimulator
@@ -43,7 +42,7 @@ class ControlAPI:
         self,
         config: Config,
         simulator: "AnovaSimulator",
-        error_simulator: Optional[ErrorSimulator] = None,
+        error_simulator: ErrorSimulator | None = None,
     ):
         """
         Initialize Control API.
@@ -57,9 +56,9 @@ class ControlAPI:
         self.simulator = simulator
         self.error_simulator = error_simulator or ErrorSimulator(simulator=simulator)
 
-        self._app: Optional[web.Application] = None
-        self._runner: Optional[web.AppRunner] = None
-        self._site: Optional[web.TCPSite] = None
+        self._app: web.Application | None = None
+        self._runner: web.AppRunner | None = None
+        self._site: web.TCPSite | None = None
         self._running = False
 
     async def start(self, host: str = "localhost"):

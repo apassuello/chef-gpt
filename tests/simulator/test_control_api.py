@@ -4,16 +4,17 @@ Tests for Test Control API (Phase 6: CP-06).
 Reference: docs/SIMULATOR-IMPLEMENTATION-PLAN.md Phase 6
 """
 
-import pytest
-import pytest_asyncio
 import asyncio
 import json
+
 import aiohttp
+import pytest
+import pytest_asyncio
 import websockets
 
-from simulator.server import AnovaSimulator
-from simulator.control_api import ControlAPI
 from simulator.config import Config
+from simulator.control_api import ControlAPI
+from simulator.server import AnovaSimulator
 from simulator.types import DeviceState
 
 pytestmark = pytest.mark.asyncio(loop_scope="function")
@@ -82,12 +83,11 @@ async def test_ctl01_reset_to_initial_state(simulator_with_control, ctl_url):
     sim.state.job.target_temperature = 80.0
 
     # Reset via API
-    async with aiohttp.ClientSession() as session:
-        async with session.post(f"{ctl_url}/reset") as resp:
-            assert resp.status == 200
-            data = await resp.json()
-            assert data["status"] == "reset"
-            assert data["state"] == "IDLE"
+    async with aiohttp.ClientSession() as session, session.post(f"{ctl_url}/reset") as resp:
+        assert resp.status == 200
+        data = await resp.json()
+        assert data["status"] == "reset"
+        assert data["state"] == "IDLE"
 
     # Verify state was reset
     assert sim.state.job_status.state == DeviceState.IDLE
@@ -105,20 +105,19 @@ async def test_ctl02_set_state_to_cooking(simulator_with_control, ctl_url):
     sim, control = simulator_with_control
 
     # Set state to COOKING via API
-    async with aiohttp.ClientSession() as session:
-        async with session.post(
-            f"{ctl_url}/set-state",
-            json={
-                "state": "COOKING",
-                "temperature": 65.0,
-                "target_temperature": 65.0,
-                "timer_remaining": 3600,
-            },
-        ) as resp:
-            assert resp.status == 200
-            data = await resp.json()
-            assert data["status"] == "updated"
-            assert data["state"] == "COOKING"
+    async with aiohttp.ClientSession() as session, session.post(
+        f"{ctl_url}/set-state",
+        json={
+            "state": "COOKING",
+            "temperature": 65.0,
+            "target_temperature": 65.0,
+            "timer_remaining": 3600,
+        },
+    ) as resp:
+        assert resp.status == 200
+        data = await resp.json()
+        assert data["status"] == "updated"
+        assert data["state"] == "COOKING"
 
     # Verify state was updated
     assert sim.state.job_status.state == DeviceState.COOKING
@@ -137,12 +136,11 @@ async def test_set_state_maintains_job_mode_invariant(simulator_with_control, ct
     states_to_test = ["PREHEATING", "COOKING", "DONE", "IDLE"]
 
     for state in states_to_test:
-        async with aiohttp.ClientSession() as session:
-            async with session.post(
-                f"{ctl_url}/set-state",
-                json={"state": state},
-            ) as resp:
-                assert resp.status == 200
+        async with aiohttp.ClientSession() as session, session.post(
+            f"{ctl_url}/set-state",
+            json={"state": state},
+        ) as resp:
+            assert resp.status == 200
 
         # Verify invariant: job.mode must equal job_status.state
         assert sim.state.job_status.state.value == state
@@ -199,14 +197,13 @@ async def test_ctl03_set_offline_disconnects_clients(ctl03_setup):
     assert len(sim.ws_server.clients) == 1
 
     # Set offline via API
-    async with aiohttp.ClientSession() as session:
-        async with session.post(
-            f"{ctl_url}/set-offline",
-            json={"offline": True},
-        ) as resp:
-            assert resp.status == 200
-            data = await resp.json()
-            assert data["status"] == "offline"
+    async with aiohttp.ClientSession() as session, session.post(
+        f"{ctl_url}/set-offline",
+        json={"offline": True},
+    ) as resp:
+        assert resp.status == 200
+        data = await resp.json()
+        assert data["status"] == "offline"
 
     # Wait for disconnect
     await asyncio.sleep(0.1)
@@ -232,15 +229,14 @@ async def test_ctl04_set_time_scale(simulator_with_control, ctl_url):
     original_scale = sim.config.time_scale
 
     # Set new time scale via API
-    async with aiohttp.ClientSession() as session:
-        async with session.post(
-            f"{ctl_url}/set-time-scale",
-            json={"time_scale": 120.0},
-        ) as resp:
-            assert resp.status == 200
-            data = await resp.json()
-            assert data["status"] == "updated"
-            assert data["time_scale"] == 120.0
+    async with aiohttp.ClientSession() as session, session.post(
+        f"{ctl_url}/set-time-scale",
+        json={"time_scale": 120.0},
+    ) as resp:
+        assert resp.status == 200
+        data = await resp.json()
+        assert data["status"] == "updated"
+        assert data["time_scale"] == 120.0
 
     # Verify time scale was updated
     assert sim.config.time_scale == 120.0
@@ -263,23 +259,22 @@ async def test_ctl05_get_state(simulator_with_control, ctl_url):
     sim.state.temperature_info.water_temperature = 30.0
 
     # Get state via API
-    async with aiohttp.ClientSession() as session:
-        async with session.get(f"{ctl_url}/state") as resp:
-            assert resp.status == 200
-            data = await resp.json()
+    async with aiohttp.ClientSession() as session, session.get(f"{ctl_url}/state") as resp:
+        assert resp.status == 200
+        data = await resp.json()
 
-            # Verify structure
-            assert "cooker_id" in data
-            assert "device_type" in data
-            assert "job" in data
-            assert "job_status" in data
-            assert "temperature_info" in data
-            assert "pin_info" in data
+        # Verify structure
+        assert "cooker_id" in data
+        assert "device_type" in data
+        assert "job" in data
+        assert "job_status" in data
+        assert "temperature_info" in data
+        assert "pin_info" in data
 
-            # Verify values
-            assert data["job_status"]["state"] == "PREHEATING"
-            assert data["job"]["target_temperature"] == 55.0
-            assert data["temperature_info"]["water_temperature"] == 30.0
+        # Verify values
+        assert data["job_status"]["state"] == "PREHEATING"
+        assert data["job"]["target_temperature"] == 55.0
+        assert data["temperature_info"]["water_temperature"] == 30.0
 
 
 # =============================================================================
@@ -340,18 +335,17 @@ async def test_ctl06_get_messages(ctl06_setup):
         await ws.recv()  # Response (outbound)
 
     # Get messages via API
-    async with aiohttp.ClientSession() as session:
-        async with session.get(f"{ctl_url}/messages") as resp:
-            assert resp.status == 200
-            data = await resp.json()
+    async with aiohttp.ClientSession() as session, session.get(f"{ctl_url}/messages") as resp:
+        assert resp.status == 200
+        data = await resp.json()
 
-            assert "count" in data
-            assert "messages" in data
-            assert data["count"] > 0
+        assert "count" in data
+        assert "messages" in data
+        assert data["count"] > 0
 
-            # Check we have both inbound and outbound messages
-            directions = {m["direction"] for m in data["messages"]}
-            assert "outbound" in directions
+        # Check we have both inbound and outbound messages
+        directions = {m["direction"] for m in data["messages"]}
+        assert "outbound" in directions
 
 
 # =============================================================================
@@ -364,14 +358,13 @@ async def test_set_state_invalid_state(simulator_with_control, ctl_url):
     """Set state with invalid state value returns error."""
     sim, control = simulator_with_control
 
-    async with aiohttp.ClientSession() as session:
-        async with session.post(
-            f"{ctl_url}/set-state",
-            json={"state": "INVALID_STATE"},
-        ) as resp:
-            assert resp.status == 400
-            data = await resp.json()
-            assert data["error"] == "INVALID_STATE"
+    async with aiohttp.ClientSession() as session, session.post(
+        f"{ctl_url}/set-state",
+        json={"state": "INVALID_STATE"},
+    ) as resp:
+        assert resp.status == 400
+        data = await resp.json()
+        assert data["error"] == "INVALID_STATE"
 
 
 @pytest.mark.asyncio
@@ -404,13 +397,12 @@ async def test_health_endpoint(simulator_with_control, ctl_url):
     """Health endpoint returns status."""
     sim, control = simulator_with_control
 
-    async with aiohttp.ClientSession() as session:
-        async with session.get(f"{ctl_url}/health") as resp:
-            assert resp.status == 200
-            data = await resp.json()
-            assert data["status"] == "ok"
-            assert data["service"] == "control-api"
-            assert "simulator_state" in data
+    async with aiohttp.ClientSession() as session, session.get(f"{ctl_url}/health") as resp:
+        assert resp.status == 200
+        data = await resp.json()
+        assert data["status"] == "ok"
+        assert data["service"] == "control-api"
+        assert "simulator_state" in data
 
 
 @pytest.mark.asyncio
@@ -438,11 +430,10 @@ async def test_get_messages_with_filter(ctl06_setup):
         await ws.recv()
 
     # Get only inbound messages
-    async with aiohttp.ClientSession() as session:
-        async with session.get(
-            f"{ctl_url}/messages?direction=inbound"
-        ) as resp:
-            assert resp.status == 200
-            data = await resp.json()
-            for msg in data["messages"]:
-                assert msg["direction"] == "inbound"
+    async with aiohttp.ClientSession() as session, session.get(
+        f"{ctl_url}/messages?direction=inbound"
+    ) as resp:
+        assert resp.status == 200
+        data = await resp.json()
+        for msg in data["messages"]:
+            assert msg["direction"] == "inbound"

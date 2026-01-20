@@ -6,7 +6,6 @@ Tests validation logic and successful workflows through the Flask application.
 Reference: docs/09-integration-test-specification.md Section 3.1
 """
 
-import pytest
 import responses
 
 

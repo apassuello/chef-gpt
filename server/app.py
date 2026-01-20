@@ -9,28 +9,18 @@ Reference: CLAUDE.md Section "Component Responsibilities > app.py"
 """
 
 import logging
-from typing import Optional, Dict, Any
-from flask import Flask, jsonify
+from typing import Any
+
+from flask import Flask
 
 from .config import Config
+from .middleware import register_error_handlers, setup_request_logging
 from .routes import api
-from .middleware import (
-    setup_request_logging,
-    register_error_handlers
-)
-from .exceptions import (
-    ValidationError,
-    AnovaAPIError,
-    DeviceOfflineError,
-    AuthenticationError,
-    DeviceBusyError,
-    NoActiveCookError
-)
 
 logger = logging.getLogger(__name__)
 
 
-def create_app(config: Optional[Config] = None) -> Flask:
+def create_app(config: Config | None = None) -> Flask:
     """
     Application factory for creating Flask app instances.
 
@@ -119,7 +109,7 @@ def configure_logging(app: Flask) -> None:
     app.logger.setLevel(log_level)
 
 
-def init_app_context(app: Flask, config: Dict[str, Any]) -> None:
+def init_app_context(app: Flask, config: dict[str, Any]) -> None:
     """
     Initialize application context with configuration.
 

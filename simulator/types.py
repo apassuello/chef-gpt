@@ -6,11 +6,11 @@ Contains enums, dataclasses, and type aliases used throughout the simulator.
 Reference: docs/SIMULATOR-SPECIFICATION.md Section 4 (State Machine)
 """
 
-from enum import Enum
-from dataclasses import dataclass, field
-from typing import Optional, Dict, Any
-from datetime import datetime
 import secrets
+from dataclasses import dataclass, field
+from datetime import datetime
+from enum import Enum
+from typing import Any
 
 
 class DeviceState(Enum):
@@ -51,7 +51,7 @@ class JobInfo:
     temperature_unit: TemperatureUnit = TemperatureUnit.CELSIUS
     cook_time_seconds: int = 0
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "id": self.id,
             "mode": self.mode,
@@ -73,7 +73,7 @@ class JobStatus:
     job_start_systick: int = 0
     state_change_systick: int = 0
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "state": self.state.value,
             "cook-time-remaining": self.cook_time_remaining,
@@ -93,7 +93,7 @@ class TemperatureInfo:
     heater_temperature: float = 22.0
     triac_temperature: int = 25
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "water-temperature": self.water_temperature,
             "heater-temperature": self.heater_temperature,
@@ -114,7 +114,7 @@ class PinInfo:
     water_level_critical: int = 0
     motor_stuck: int = 0
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "device-safe": self.device_safe,
             "water-leak": self.water_leak,
@@ -136,7 +136,7 @@ class NetworkInfo:
     ssid: str = "SimulatorNetwork"
     security_type: str = "WPA2"
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "connection-status": self.connection_status,
             "mac-address": self.mac_address,
@@ -150,7 +150,7 @@ class HeaterControl:
     """Heater control state."""
     duty_cycle: float = 0.0
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {"duty-cycle": self.duty_cycle}
 
 
@@ -159,7 +159,7 @@ class MotorControl:
     """Motor (circulation pump) control state."""
     duty_cycle: float = 0.0
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {"duty-cycle": self.duty_cycle}
 
 
@@ -168,7 +168,7 @@ class MotorInfo:
     """Motor information."""
     rpm: int = 0
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {"rpm": self.rpm}
 
 
@@ -221,20 +221,20 @@ class CookerState:
         return self.temperature_info.water_temperature
 
     @property
-    def target_temp(self) -> Optional[float]:
+    def target_temp(self) -> float | None:
         """Convenience property for target temperature."""
         if self.job_status.state == DeviceState.IDLE:
             return None
         return self.job.target_temperature
 
     @property
-    def timer_remaining(self) -> Optional[int]:
+    def timer_remaining(self) -> int | None:
         """Convenience property for timer remaining in seconds."""
         if self.job_status.state == DeviceState.IDLE:
             return None
         return self.job_status.cook_time_remaining
 
-    def to_event_payload(self) -> Dict[str, Any]:
+    def to_event_payload(self) -> dict[str, Any]:
         """
         Convert to EVENT_APC_STATE payload format.
 

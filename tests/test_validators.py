@@ -14,9 +14,9 @@ Reference: CLAUDE.md lines 825-842 (test case table)
 """
 
 import pytest
-from server.validators import validate_start_cook, _is_poultry, _is_ground_meat
-from server.exceptions import ValidationError
 
+from server.exceptions import ValidationError
+from server.validators import _is_ground_meat, _is_poultry, validate_start_cook
 
 # ==============================================================================
 # TEMPERATURE VALIDATION TESTS

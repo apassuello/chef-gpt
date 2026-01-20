@@ -9,7 +9,6 @@ Reference: PHASE-2-PLAN.md
 Reference: HANDOFF-INTEGRATION-TESTS.md
 """
 
-import pytest
 import responses
 
 

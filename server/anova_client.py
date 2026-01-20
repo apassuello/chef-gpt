@@ -18,19 +18,20 @@ Reference: docs/02-security-architecture.md Section 4 (authentication flows)
 Reference: docs/03-component-architecture.md Section 4.3
 """
 
-import os
 import logging
-from typing import Dict, Any, Optional
+import os
 from datetime import datetime, timedelta
+from typing import Any
+
 import requests
 
 from .config import Config
 from .exceptions import (
     AnovaAPIError,
-    DeviceOfflineError,
     AuthenticationError,
     DeviceBusyError,
-    NoActiveCookError
+    DeviceOfflineError,
+    NoActiveCookError,
 )
 
 logger = logging.getLogger(__name__)
@@ -90,9 +91,9 @@ class AnovaClient:
         })
 
         # Initialize empty token state
-        self._access_token: Optional[str] = None
-        self._refresh_token: Optional[str] = None
-        self._token_expiry: Optional[datetime] = None
+        self._access_token: str | None = None
+        self._refresh_token: str | None = None
+        self._token_expiry: datetime | None = None
 
         # Authenticate immediately
         self._authenticate()
@@ -147,9 +148,9 @@ class AnovaClient:
             logger.info("Firebase authentication successful")
 
         except requests.exceptions.RequestException as e:
-            raise AuthenticationError(f"Network error during authentication: {str(e)}")
+            raise AuthenticationError(f"Network error during authentication: {e!s}") from e
         except KeyError as e:
-            raise AuthenticationError(f"Unexpected response format from Firebase: missing {e}")
+            raise AuthenticationError(f"Unexpected response format from Firebase: missing {e}") from e
 
     def _refresh_access_token(self) -> None:
         """
@@ -228,7 +229,7 @@ class AnovaClient:
             logger.info("Access token expired or expiring soon, refreshing")
             self._refresh_access_token()
 
-    def _api_request(self, method: str, endpoint: str, **kwargs) -> Dict[str, Any]:
+    def _api_request(self, method: str, endpoint: str, **kwargs) -> dict[str, Any]:
         """
         Make an authenticated request to the Anova API.
 
@@ -273,10 +274,10 @@ class AnovaClient:
 
             return response.json()
 
-        except requests.exceptions.Timeout:
-            raise AnovaAPIError("Request timeout", 503)
+        except requests.exceptions.Timeout as e:
+            raise AnovaAPIError("Request timeout", 503) from e
         except requests.exceptions.RequestException as e:
-            raise AnovaAPIError(f"Network error: {str(e)}", 503)
+            raise AnovaAPIError(f"Network error: {e!s}", 503) from e
 
     def _map_state(self, anova_state: str) -> str:
         """
@@ -300,7 +301,7 @@ class AnovaClient:
         normalized = anova_state.lower()
         return state_map.get(normalized, 'idle')
 
-    def get_status(self) -> Dict[str, Any]:
+    def get_status(self) -> dict[str, Any]:
         """
         Get current device status.
 
@@ -350,7 +351,7 @@ class AnovaClient:
         except AnovaAPIError:
             raise
 
-    def start_cook(self, temperature_c: float, time_minutes: int) -> Dict[str, Any]:
+    def start_cook(self, temperature_c: float, time_minutes: int) -> dict[str, Any]:
         """
         Start a cooking session.
 
@@ -410,7 +411,7 @@ class AnovaClient:
             'estimated_completion': estimated_completion.isoformat() + 'Z'
         }
 
-    def stop_cook(self) -> Dict[str, Any]:
+    def stop_cook(self) -> dict[str, Any]:
         """
         Stop the current cooking session.
 

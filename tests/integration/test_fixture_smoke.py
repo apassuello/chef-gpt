@@ -7,7 +7,6 @@ and can be used in integration tests.
 Reference: HANDOFF-INTEGRATION-TESTS.md - Phase 1 verification
 """
 
-import pytest
 import responses
 
 

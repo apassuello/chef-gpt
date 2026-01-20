@@ -7,9 +7,9 @@ token refresh, and concurrent operations.
 Reference: docs/09-integration-test-specification.md Section 3.3
 """
 
-import pytest
-import responses
 import threading
+
+import responses
 
 
 @responses.activate

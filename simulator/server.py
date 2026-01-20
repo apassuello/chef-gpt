@@ -18,23 +18,21 @@ Reference: docs/SIMULATOR-SPECIFICATION.md
 import asyncio
 import logging
 import signal
-import sys
-from typing import Optional
 
 from .config import Config
-from .types import CookerState, DeviceState, generate_cook_id
-from .websocket_server import WebSocketServer
-from .firebase_mock import FirebaseMock
 from .control_api import ControlAPI
+from .firebase_mock import FirebaseMock
 from .messages import (
-    build_success_response,
-    build_error_response,
-    ErrorCode,
-    CMD_APC_START,
-    CMD_APC_STOP,
     CMD_APC_SET_TARGET_TEMP,
     CMD_APC_SET_TIMER,
+    CMD_APC_START,
+    CMD_APC_STOP,
+    ErrorCode,
+    build_error_response,
+    build_success_response,
 )
+from .types import CookerState, DeviceState, generate_cook_id
+from .websocket_server import WebSocketServer
 
 # Configure logging
 logging.basicConfig(
@@ -59,7 +57,7 @@ class AnovaSimulator:
 
     def __init__(
         self,
-        config: Optional[Config] = None,
+        config: Config | None = None,
         time_scale: float = 1.0,
         ws_port: int = 8765,
         control_port: int = 8766,
@@ -93,14 +91,14 @@ class AnovaSimulator:
 
         # Initialize servers
         self.ws_server = WebSocketServer(self.config, self.state)
-        self.firebase_mock: Optional[FirebaseMock] = None
-        self.control_api: Optional[ControlAPI] = None
+        self.firebase_mock: FirebaseMock | None = None
+        self.control_api: ControlAPI | None = None
 
         # Register command handlers
         self._register_handlers()
 
         # Physics task
-        self._physics_task: Optional[asyncio.Task] = None
+        self._physics_task: asyncio.Task | None = None
         self._running = False
 
     def _register_handlers(self):
@@ -528,10 +526,12 @@ async def main():
 
     # Handle shutdown signals
     loop = asyncio.get_event_loop()
+    shutdown_task = None
 
     def shutdown():
+        nonlocal shutdown_task
         logger.info("Shutdown signal received")
-        asyncio.create_task(simulator.stop())
+        shutdown_task = asyncio.create_task(simulator.stop())
 
     for sig in (signal.SIGINT, signal.SIGTERM):
         loop.add_signal_handler(sig, shutdown)

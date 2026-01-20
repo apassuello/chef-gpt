@@ -17,9 +17,9 @@ Reference: CLAUDE.md Section "Configuration Management"
 Reference: docs/03-component-architecture.md Section 4.4.1 (COMP-CFG-01)
 """
 
-import os
 import json
 import logging
+import os
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Self

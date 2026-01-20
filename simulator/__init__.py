@@ -15,13 +15,13 @@ Usage:
 Reference: docs/SIMULATOR-SPECIFICATION.md
 """
 
-from .types import DeviceState, CookerState, SimulatorConfig
 from .config import Config
+from .types import CookerState, DeviceState, SimulatorConfig
 
 __version__ = "1.0.0"
 __all__ = [
-    "DeviceState",
-    "CookerState",
-    "SimulatorConfig",
     "Config",
+    "CookerState",
+    "DeviceState",
+    "SimulatorConfig",
 ]

@@ -12,14 +12,13 @@ Reference:
 - CLAUDE.md Section "Testing Strategy"
 """
 
+
 import pytest
 import responses
-from typing import Dict, Any
 from flask.testing import FlaskClient
 
 from server.app import create_app
 from server.config import Config
-
 
 # ==============================================================================
 # TEST CONFIGURATION

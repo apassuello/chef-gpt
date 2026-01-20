@@ -12,12 +12,12 @@ Reference: CLAUDE.md Section "Configuration Management"
 Reference: docs/03-component-architecture.md Section 4.4.1 (COMP-CFG-01)
 """
 
-import pytest
-import os
 import json
 from pathlib import Path
-from server.config import Config
 
+import pytest
+
+from server.config import Config
 
 # ==============================================================================
 # TEST FIXTURES

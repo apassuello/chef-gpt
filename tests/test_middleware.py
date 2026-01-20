@@ -13,20 +13,20 @@ Reference: CLAUDE.md Section "Code Patterns > 3. Authentication Pattern"
 Reference: docs/03-component-architecture.md Section 4.1.3 (COMP-MW-01)
 """
 
-import pytest
 import time
-from unittest.mock import Mock, patch
-from flask import Flask, request
-from server.middleware import require_api_key, setup_request_logging, register_error_handlers
-from server.exceptions import (
-    ValidationError,
-    DeviceOfflineError,
-    DeviceBusyError,
-    NoActiveCookError,
-    AnovaAPIError,
-    AuthenticationError
-)
 
+import pytest
+from flask import Flask, request
+
+from server.exceptions import (
+    AnovaAPIError,
+    AuthenticationError,
+    DeviceBusyError,
+    DeviceOfflineError,
+    NoActiveCookError,
+    ValidationError,
+)
+from server.middleware import register_error_handlers, require_api_key, setup_request_logging
 
 # ==============================================================================
 # TEST FIXTURES

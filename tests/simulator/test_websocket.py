@@ -11,15 +11,16 @@ Test cases:
 Reference: docs/SIMULATOR-IMPLEMENTATION-PLAN.md Phase 1
 """
 
-import pytest
-import pytest_asyncio
 import asyncio
 import json
+
+import pytest
+import pytest_asyncio
 import websockets
 from websockets.exceptions import InvalidStatus
 
-from simulator.server import AnovaSimulator
 from simulator.config import Config
+from simulator.server import AnovaSimulator
 
 # Configure pytest-asyncio
 pytestmark = pytest.mark.asyncio(loop_scope="function")

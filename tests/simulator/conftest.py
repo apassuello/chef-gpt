@@ -16,20 +16,17 @@ Usage:
         pass
 """
 
+from collections.abc import AsyncGenerator
+
 import pytest
 import pytest_asyncio
-import asyncio
-import json
 import websockets
-from typing import AsyncGenerator
 
-from simulator.server import AnovaSimulator
+from simulator.config import Config
 from simulator.control_api import ControlAPI
 from simulator.firebase_mock import FirebaseMock
-from simulator.errors import ErrorSimulator
-from simulator.config import Config
+from simulator.server import AnovaSimulator
 from simulator.types import CookerState, DeviceState, SimulatorConfig
-
 
 # =============================================================================
 # PORT MANAGEMENT

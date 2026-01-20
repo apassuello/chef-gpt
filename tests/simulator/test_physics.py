@@ -4,14 +4,15 @@ Tests for physics simulation and state broadcasting (Phase 3-4: CP-03, CP-04).
 Reference: docs/SIMULATOR-IMPLEMENTATION-PLAN.md Phase 3-4
 """
 
-import pytest
-import pytest_asyncio
 import asyncio
 import json
+
+import pytest
+import pytest_asyncio
 import websockets
 
-from simulator.server import AnovaSimulator
 from simulator.config import Config
+from simulator.server import AnovaSimulator
 from simulator.types import DeviceState, generate_request_id
 
 pytestmark = pytest.mark.asyncio(loop_scope="function")
