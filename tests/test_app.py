@@ -106,9 +106,7 @@ class TestCreateApp:
 
     @patch("server.app.AnovaWebSocketClient")
     @patch("server.app.atexit.register")
-    def test_create_app_registers_shutdown_handler(
-        self, mock_atexit, mock_client_class
-    ):
+    def test_create_app_registers_shutdown_handler(self, mock_atexit, mock_client_class):
         """Test that shutdown handler is registered for WebSocket client."""
         mock_client = MagicMock()
         mock_client_class.return_value = mock_client

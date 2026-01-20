@@ -66,7 +66,7 @@ class DemoRunner:
         print("ANOVA SOUS VIDE DEMO")
         print("=" * 70)
         print()
-        print(f"Time scale: {self.time_scale}x (1 minute = {60/self.time_scale:.1f} seconds)")
+        print(f"Time scale: {self.time_scale}x (1 minute = {60 / self.time_scale:.1f} seconds)")
         print()
 
         # Import here to avoid circular imports
@@ -117,7 +117,8 @@ class DemoRunner:
         # Start Flask in subprocess
         self.flask_process = subprocess.Popen(
             [
-                sys.executable, "-c",
+                sys.executable,
+                "-c",
                 f"""
 import sys
 sys.path.insert(0, '.')
@@ -149,7 +150,7 @@ register_error_handlers(app)
 setup_request_logging(app)
 
 app.run(host="127.0.0.1", port={self.flask_port}, debug=False, use_reloader=False)
-"""
+""",
             ],
             env=env,
             stdout=subprocess.DEVNULL,
@@ -199,6 +200,7 @@ app.run(host="127.0.0.1", port={self.flask_port}, debug=False, use_reloader=Fals
         """Print API call info."""
         if data:
             import json
+
             print(f"[API] {method} {endpoint} {json.dumps(data)}")
         else:
             print(f"[API] {method} {endpoint}")
@@ -206,6 +208,7 @@ app.run(host="127.0.0.1", port={self.flask_port}, debug=False, use_reloader=Fals
     def _print_api_response(self, response: requests.Response):
         """Print API response info."""
         import json
+
         try:
             data = response.json()
             print(f"[API] Response: {response.status_code} {json.dumps(data)}")
@@ -231,7 +234,9 @@ app.run(host="127.0.0.1", port={self.flask_port}, debug=False, use_reloader=Fals
 
         # Calculate actual duration with time scale
         actual_duration = scenario.time_minutes * 60 / self.time_scale
-        print(f"(With {self.time_scale}x time scale, this will take ~{actual_duration:.0f} seconds)")
+        print(
+            f"(With {self.time_scale}x time scale, this will take ~{actual_duration:.0f} seconds)"
+        )
         print()
 
         # 1. Start cook
@@ -288,7 +293,9 @@ app.run(host="127.0.0.1", port={self.flask_port}, debug=False, use_reloader=Fals
                 if last_state != "cooking":
                     print("[STATUS] Reached target! Starting timer...")
                 if time_remaining is not None:
-                    print(f"[STATUS] Cooking... Time remaining: {time_remaining} min | Temp: {current_temp:.1f}°C")
+                    print(
+                        f"[STATUS] Cooking... Time remaining: {time_remaining} min | Temp: {current_temp:.1f}°C"
+                    )
                 else:
                     print(f"[STATUS] Cooking... Temp: {current_temp:.1f}°C")
             elif state == "done":
@@ -417,23 +424,27 @@ Examples:
 """,
     )
     parser.add_argument(
-        "--scenario", "-s",
+        "--scenario",
+        "-s",
         default="quick",
         help="Scenario to run (default: quick)",
     )
     parser.add_argument(
-        "--time-scale", "-t",
+        "--time-scale",
+        "-t",
         type=float,
         default=DEFAULT_TIME_SCALE,
         help=f"Time acceleration factor (default: {DEFAULT_TIME_SCALE})",
     )
     parser.add_argument(
-        "--interactive", "-i",
+        "--interactive",
+        "-i",
         action="store_true",
         help="Run in interactive mode",
     )
     parser.add_argument(
-        "--list", "-l",
+        "--list",
+        "-l",
         action="store_true",
         help="List available scenarios",
     )
