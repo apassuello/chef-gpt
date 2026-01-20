@@ -8,11 +8,13 @@ and testability.
 Reference: CLAUDE.md Section "Component Responsibilities > app.py"
 """
 
+import atexit
 import logging
 from typing import Any
 
 from flask import Flask
 
+from .anova_client import AnovaWebSocketClient
 from .config import Config
 from .middleware import register_error_handlers, setup_request_logging
 from .routes import api
@@ -45,7 +47,7 @@ def create_app(config: Config | None = None) -> Flask:
         app.run()
 
         # Testing with custom config
-        test_config = Config(ANOVA_EMAIL="test@example.com", ...)
+        test_config = Config(PERSONAL_ACCESS_TOKEN="anova-test-token", API_KEY="test-key")
         app = create_app(config=test_config)
 
     Reference: CLAUDE.md Section "Component Responsibilities > app.py" (lines 150-158)
@@ -65,16 +67,30 @@ def create_app(config: Config | None = None) -> Flask:
     # 4. Configure logging
     configure_logging(app)
 
-    # 5. Register routes blueprint
+    # 5. Initialize WebSocket client (runs in background thread)
+    logger.info("Initializing WebSocket connection to Anova...")
+    try:
+        anova_client = AnovaWebSocketClient(config)
+        app.config["ANOVA_CLIENT"] = anova_client
+        logger.info("WebSocket client initialized successfully")
+
+        # CRITICAL FIX: Register shutdown handler for graceful cleanup
+        atexit.register(lambda: anova_client.shutdown())
+        logger.debug("Registered shutdown handler for WebSocket client")
+    except Exception as e:
+        logger.error(f"Failed to initialize WebSocket client: {e}")
+        raise RuntimeError(f"Failed to connect to Anova API: {e}") from e
+
+    # 6. Register routes blueprint
     app.register_blueprint(api)
 
-    # 6. Setup request logging middleware
+    # 7. Setup request logging middleware
     setup_request_logging(app)
 
-    # 7. Register error handlers
+    # 8. Register error handlers
     register_error_handlers(app)
 
-    # 8. Log startup message
+    # 9. Log startup message
     logger.info("Anova Sous Vide Assistant API initialized")
     logger.info(f"Debug mode: {config.DEBUG}")
 
@@ -168,9 +184,16 @@ if __name__ == "__main__":
 # 1. Create Flask app
 # 2. Load configuration
 # 3. Configure logging
-# 4. Register routes (Blueprint)
-# 5. Register middleware (request/response logging)
-# 6. Register error handlers (exception → HTTP mapping)
+# 4. Initialize WebSocket client (background thread starts here)
+# 5. Register routes (Blueprint)
+# 6. Register middleware (request/response logging)
+# 7. Register error handlers (exception → HTTP mapping)
+#
+# WebSocket client initialization:
+# - Happens at app startup (not per-request)
+# - Runs in background thread with async event loop
+# - Connection persists for app lifetime
+# - Routes access via app.config['ANOVA_CLIENT']
 #
 # Error handler registration:
 # - ValidationError → 400 Bad Request
@@ -181,3 +204,4 @@ if __name__ == "__main__":
 # - AuthenticationError → 500 Internal Server Error
 #
 # Reference: CLAUDE.md Section "Code Patterns > 1. Error Handling Pattern" (lines 229-233)
+# Reference: WebSocket migration plan Section "Component Rewrites > 4. server/app.py"

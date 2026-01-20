@@ -13,10 +13,8 @@ Reference:
 """
 
 import pytest
-import responses
 from flask.testing import FlaskClient
 
-from server.app import create_app
 from server.config import Config
 
 # ==============================================================================
@@ -24,9 +22,7 @@ from server.config import Config
 # ==============================================================================
 
 TEST_CONFIG = {
-    "ANOVA_EMAIL": "test@example.com",
-    "ANOVA_PASSWORD": "test-password",
-    "DEVICE_ID": "test-device-123",
+    "PERSONAL_ACCESS_TOKEN": "anova-test-token-12345",
     "API_KEY": "test-api-key-12345",
     "HOST": "127.0.0.1",
     "PORT": 5000,
@@ -44,22 +40,39 @@ def app(monkeypatch):
     """
     Create Flask application configured for testing.
 
+    Note: WebSocket client is NOT initialized in tests. Routes tests must
+    inject mock_websocket_client using monkeypatch.
+
     Returns:
         Flask app with test configuration
 
     Reference: Spec Section 2.2 (lines 104-133)
+    Reference: WebSocket migration testing strategy
     """
-    # Set FIREBASE_API_KEY environment variable for Anova client
-    monkeypatch.setenv("FIREBASE_API_KEY", "test-firebase-api-key-12345")
+    # Set PERSONAL_ACCESS_TOKEN environment variable (required by config)
+    monkeypatch.setenv("PERSONAL_ACCESS_TOKEN", "anova-test-token-12345")
+    monkeypatch.setenv("API_KEY", "test-api-key-12345")
 
-    # Create test configuration (only Config fields)
+    # Create test configuration
     config = Config(**TEST_CONFIG)
 
-    # Create app with test config
-    app = create_app(config)
+    # Create app WITHOUT WebSocket client (tests inject mock)
+    # This prevents actual WebSocket connection during tests
+    from flask import Flask
 
-    # Set Flask-specific test configuration
+    from server.middleware import register_error_handlers, setup_request_logging
+    from server.routes import api
+
+    app = Flask(__name__)
+    app.config.from_object(config)
     app.config["TESTING"] = True
+
+    # Register blueprint
+    app.register_blueprint(api)
+
+    # Setup middleware
+    register_error_handlers(app)
+    setup_request_logging(app)
 
     yield app
 
@@ -205,192 +218,246 @@ def invalid_cook_requests():
 
 
 # ==============================================================================
-# ANOVA API MOCK FIXTURES
+# WEBSOCKET CLIENT MOCK FIXTURES
 # ==============================================================================
 
 
 @pytest.fixture
-def mock_anova_api_success():
+def mock_websocket_client():
     """
-    Add mock responses for successful Anova API operations (happy path).
+    Create a mock WebSocket client for testing routes without real WebSocket connection.
 
-    This fixture directly adds mock HTTP responses using the responses library.
-    Tests using this fixture must decorate with @responses.activate.
-
-    Mocks added:
-    - Firebase authentication (POST signInWithPassword) → 200
-    - Device status check (GET /status) → idle, online
-    - Start cook command (POST /start) → success, preheating
-    - Stop cook command (POST /stop) → success, idle
+    Provides a mock AnovaWebSocketClient with standard behavior:
+    - get_status() returns idle device
+    - start_cook() succeeds
+    - stop_cook() succeeds
 
     Usage:
-        @responses.activate
-        def test_something(client, auth_headers, mock_anova_api_success):
-            # Mocks are already added by the fixture
+        def test_route(client, auth_headers, mock_websocket_client, monkeypatch):
+            # Inject mock into app
+            monkeypatch.setitem(client.application.config, 'ANOVA_CLIENT', mock_websocket_client)
+            # Make requests
             response = client.post('/start-cook', headers=auth_headers, json={...})
 
-    Reference: Spec Section 2.5 (lines 256-309)
+    Returns:
+        Mock object with get_status, start_cook, stop_cook methods
+
+    Reference: WebSocket migration testing strategy
     """
-    # Mock Firebase authentication
-    responses.add(
-        responses.POST,
-        "https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword",
-        json={
-            "idToken": "mock-id-token-12345",
-            "refreshToken": "mock-refresh-token",
-            "expiresIn": "3600",
-        },
-        status=200,
-    )
+    import threading
+    from unittest.mock import Mock
 
-    # Mock device status (idle) - first call before start cook
-    responses.add(
-        responses.GET,
-        "https://anovaculinary.io/api/v1/devices/test-device-123",
-        json={
-            "online": True,
-            "cookerState": "IDLE",
-            "currentTemperature": 22.5,
-            "targetTemperature": None,
-            "cookTimeRemaining": None,
-            "cookTimeElapsed": None,
-        },
-        status=200,
-    )
+    mock = Mock()
 
-    # Mock device status (preheating) - subsequent calls after start cook
-    responses.add(
-        responses.GET,
-        "https://anovaculinary.io/api/v1/devices/test-device-123",
-        json={
-            "online": True,
-            "cookerState": "PREHEATING",
-            "currentTemperature": 45.0,
-            "targetTemperature": 65.0,
-            "cookTimeRemaining": 5400,  # 90 minutes in seconds
-            "cookTimeElapsed": 0,
-        },
-        status=200,
-    )
+    # CRITICAL FIX: Add attributes needed by real implementation
+    mock.devices_lock = threading.Lock()
+    mock.pending_lock = threading.Lock()
+    mock.status_lock = threading.Lock()
+    mock.pending_requests = {}
+    mock.shutdown_requested = threading.Event()
+    mock.devices = {"test-device": {"type": "oven_v2"}}
+    mock.selected_device = "test-device"
 
-    # Mock start cook command
-    responses.add(
-        responses.POST,
-        "https://anovaculinary.io/api/v1/devices/test-device-123/cook",
-        json={
-            "success": True,
-            "cookId": "550e8400-e29b-41d4-a716-446655440000",  # UUID format
-            "state": "preheating",
-        },
-        status=200,
-    )
+    # Mock get_status (idle by default)
+    mock.get_status.return_value = {
+        "device_online": True,
+        "state": "idle",
+        "current_temp_celsius": 20.0,
+        "target_temp_celsius": None,
+        "time_remaining_minutes": None,
+        "time_elapsed_minutes": None,
+        "is_running": False,
+    }
 
-    # Mock stop cook command
-    responses.add(
-        responses.POST,
-        "https://anovaculinary.io/api/v1/devices/test-device-123/stop",
-        json={"success": True, "state": "idle"},
-        status=200,
-    )
+    # Mock start_cook (success by default)
+    mock.start_cook.return_value = {
+        "success": True,
+        "message": "Cook started successfully",
+        "cook_id": "550e8400-e29b-41d4-a716-446655440000",
+        "device_state": "preheating",
+        "target_temp_celsius": 65.0,
+        "time_minutes": 90,
+        "estimated_completion": "2025-01-15T10:30:00Z",
+    }
+
+    # Mock stop_cook (success by default)
+    mock.stop_cook.return_value = {
+        "success": True,
+        "message": "Cook stopped successfully",
+        "device_state": "idle",
+        "final_temp_celsius": 64.9,
+    }
+
+    return mock
 
 
 @pytest.fixture
-def mock_anova_api_offline():
+def mock_websocket_client_offline():
     """
-    Add mock responses for device offline scenario (error testing).
+    Mock WebSocket client that simulates device offline scenario.
 
-    This fixture directly adds mock HTTP responses using the responses library.
-    Tests using this fixture must decorate with @responses.activate.
-
-    Mocks added:
-    - Firebase authentication (POST signInWithPassword) → 200 (still works)
-    - Device status check (GET /status) → 404 Device not found
+    All methods raise DeviceOfflineError.
 
     Usage:
-        @responses.activate
-        def test_device_offline(client, auth_headers, mock_anova_api_offline):
-            # Mocks are already added by the fixture
+        def test_device_offline(client, auth_headers, mock_websocket_client_offline, monkeypatch):
+            monkeypatch.setitem(client.application.config, 'ANOVA_CLIENT', mock_websocket_client_offline)
             response = client.post('/start-cook', headers=auth_headers, json={...})
             assert response.status_code == 503
 
-    Reference: Spec Section 2.5 (lines 311-338)
-    """
-    # Mock Firebase auth (still works)
-    responses.add(
-        responses.POST,
-        "https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword",
-        json={
-            "idToken": "mock-id-token-12345",
-            "refreshToken": "mock-refresh-token",
-            "expiresIn": "3600",
-        },
-        status=200,
-    )
+    Returns:
+        Mock object that raises DeviceOfflineError
 
-    # Mock device offline (404 or online=false)
-    responses.add(
-        responses.GET,
-        "https://anovaculinary.io/api/v1/devices/test-device-123",
-        json={"error": "Device not found or offline"},
-        status=404,
-    )
+    Reference: WebSocket migration testing strategy
+    """
+    import threading
+    from unittest.mock import Mock
+
+    from server.exceptions import DeviceOfflineError
+
+    mock = Mock()
+
+    # CRITICAL FIX: Add attributes needed by real implementation
+    mock.devices_lock = threading.Lock()
+    mock.pending_lock = threading.Lock()
+    mock.status_lock = threading.Lock()
+    mock.pending_requests = {}
+    mock.shutdown_requested = threading.Event()
+    mock.devices = {}  # Offline - no devices
+    mock.selected_device = None  # Offline - no selected device
+
+    # All methods raise DeviceOfflineError
+    mock.get_status.side_effect = DeviceOfflineError("No device connected")
+    mock.start_cook.side_effect = DeviceOfflineError("No device connected")
+    mock.stop_cook.side_effect = DeviceOfflineError("No device connected")
+
+    return mock
 
 
 @pytest.fixture
-def mock_anova_api_busy():
+def mock_websocket_client_busy():
     """
-    Add mock responses for device already cooking scenario (error testing).
+    Mock WebSocket client that simulates device already cooking scenario.
 
-    This fixture directly adds mock HTTP responses using the responses library.
-    Tests using this fixture must decorate with @responses.activate.
-
-    Mocks added:
-    - Firebase authentication (POST signInWithPassword) → 200
-    - Device status check (GET /status) → cooking, online
-    - Start cook command (POST /start) → 409 Device already cooking
+    get_status returns is_running=True
+    start_cook raises DeviceBusyError
+    stop_cook succeeds
 
     Usage:
-        @responses.activate
-        def test_device_busy(client, auth_headers, mock_anova_api_busy):
-            # Mocks are already added by the fixture
+        def test_device_busy(client, auth_headers, mock_websocket_client_busy, monkeypatch):
+            monkeypatch.setitem(client.application.config, 'ANOVA_CLIENT', mock_websocket_client_busy)
             response = client.post('/start-cook', headers=auth_headers, json={...})
             assert response.status_code == 409
 
-    Reference: Spec Section 2.5 (lines 340-382)
+    Returns:
+        Mock object with is_running=True
+
+    Reference: WebSocket migration testing strategy
     """
-    # Mock Firebase auth
-    responses.add(
-        responses.POST,
-        "https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword",
-        json={
-            "idToken": "mock-id-token-12345",
-            "refreshToken": "mock-refresh-token",
-            "expiresIn": "3600",
-        },
-        status=200,
+    import threading
+    from unittest.mock import Mock
+
+    from server.exceptions import DeviceBusyError
+
+    mock = Mock()
+
+    # CRITICAL FIX: Add attributes needed by real implementation
+    mock.devices_lock = threading.Lock()
+    mock.pending_lock = threading.Lock()
+    mock.status_lock = threading.Lock()
+    mock.pending_requests = {}
+    mock.shutdown_requested = threading.Event()
+    mock.devices = {"test-device": {"type": "oven_v2"}}
+    mock.selected_device = "test-device"
+
+    # get_status shows device is cooking
+    mock.get_status.return_value = {
+        "device_online": True,
+        "state": "cooking",
+        "current_temp_celsius": 64.8,
+        "target_temp_celsius": 65.0,
+        "time_remaining_minutes": 45,
+        "time_elapsed_minutes": 45,
+        "is_running": True,
+    }
+
+    # start_cook raises DeviceBusyError
+    mock.start_cook.side_effect = DeviceBusyError(
+        "Device is already cooking. Stop current cook first."
     )
 
-    # Mock device status (already cooking)
-    responses.add(
-        responses.GET,
-        "https://anovaculinary.io/api/v1/devices/test-device-123",
-        json={
-            "online": True,
-            "cookerState": "COOKING",
-            "currentTemperature": 65.0,
-            "targetTemperature": 65.0,
-            "cookTimeRemaining": 2700,
-        },
-        status=200,
-    )
+    # stop_cook succeeds
+    mock.stop_cook.return_value = {
+        "success": True,
+        "message": "Cook stopped successfully",
+        "device_state": "idle",
+        "final_temp_celsius": 64.8,
+    }
 
-    # Mock start cook rejection (409)
-    responses.add(
-        responses.POST,
-        "https://anovaculinary.io/api/v1/devices/test-device-123/start",
-        json={"error": "Device already cooking"},
-        status=409,
-    )
+    return mock
+
+
+@pytest.fixture
+def mock_websocket_client_no_active_cook():
+    """
+    Mock WebSocket client that simulates no active cook scenario.
+
+    get_status returns is_running=False
+    start_cook succeeds
+    stop_cook raises NoActiveCookError
+
+    Usage:
+        def test_no_active_cook(client, auth_headers, mock_websocket_client_no_active_cook, monkeypatch):
+            monkeypatch.setitem(client.application.config, 'ANOVA_CLIENT', mock_websocket_client_no_active_cook)
+            response = client.post('/stop-cook', headers=auth_headers)
+            assert response.status_code == 409
+
+    Returns:
+        Mock object with is_running=False
+
+    Reference: WebSocket migration testing strategy
+    """
+    import threading
+    from unittest.mock import Mock
+
+    from server.exceptions import NoActiveCookError
+
+    mock = Mock()
+
+    # CRITICAL FIX: Add attributes needed by real implementation
+    mock.devices_lock = threading.Lock()
+    mock.pending_lock = threading.Lock()
+    mock.status_lock = threading.Lock()
+    mock.pending_requests = {}
+    mock.shutdown_requested = threading.Event()
+    mock.devices = {"test-device": {"type": "oven_v2"}}
+    mock.selected_device = "test-device"
+
+    # get_status shows device is idle
+    mock.get_status.return_value = {
+        "device_online": True,
+        "state": "idle",
+        "current_temp_celsius": 20.0,
+        "target_temp_celsius": None,
+        "time_remaining_minutes": None,
+        "time_elapsed_minutes": None,
+        "is_running": False,
+    }
+
+    # start_cook succeeds
+    mock.start_cook.return_value = {
+        "success": True,
+        "message": "Cook started successfully",
+        "cook_id": "550e8400-e29b-41d4-a716-446655440000",
+        "device_state": "preheating",
+        "target_temp_celsius": 65.0,
+        "time_minutes": 90,
+        "estimated_completion": "2025-01-15T10:30:00Z",
+    }
+
+    # stop_cook raises NoActiveCookError
+    mock.stop_cook.side_effect = NoActiveCookError("No active cook to stop")
+
+    return mock
 
 
 # ==============================================================================

@@ -20,8 +20,6 @@ from typing import Any
 
 from flask import Blueprint, current_app, jsonify, request
 
-from .anova_client import AnovaClient
-from .config import Config
 from .middleware import require_api_key
 from .validators import validate_start_cook
 
@@ -109,21 +107,21 @@ def start_cook() -> tuple[dict[str, Any], int]:
     Flow:
     1. Extract JSON from request
     2. Validate with validators.validate_start_cook()
-    3. Create Anova client
+    3. Get WebSocket client from app context
     4. Call client.start_cook()
     5. Return success response
 
     Reference: CLAUDE.md Section "API Endpoints Reference > POST /start-cook" (lines 948-978)
     Reference: CLAUDE.md Section "Code Patterns > 3. Authentication Pattern" (lines 401-434)
+    Reference: WebSocket migration plan Section "Component Rewrites > 3. server/routes.py"
     """
     # Validate input (raises ValidationError if invalid)
     validated = validate_start_cook(request.json or {})
 
-    # Get configuration from app context
-    config: Config = current_app.config["ANOVA_CONFIG"]
+    # Get WebSocket client from app context (initialized at startup)
+    client = current_app.config["ANOVA_CLIENT"]
 
-    # Create Anova client and start cook
-    client = AnovaClient(config)
+    # Start cook via WebSocket
     result = client.start_cook(
         temperature_c=validated["temperature_celsius"], time_minutes=validated["time_minutes"]
     )
@@ -158,11 +156,8 @@ def get_status() -> tuple[dict[str, Any], int]:
 
     Reference: CLAUDE.md Section "API Endpoints Reference > GET /status" (lines 980-1002)
     """
-    # Get configuration from app context
-    config: Config = current_app.config["ANOVA_CONFIG"]
-
-    # Create Anova client and get status
-    client = AnovaClient(config)
+    # Get WebSocket client from app context (initialized at startup)
+    client = current_app.config["ANOVA_CLIENT"]
     status = client.get_status()
 
     # Return status response
@@ -192,11 +187,8 @@ def stop_cook() -> tuple[dict[str, Any], int]:
 
     Reference: CLAUDE.md Section "API Endpoints Reference > POST /stop-cook" (lines 1004-1026)
     """
-    # Get configuration from app context
-    config: Config = current_app.config["ANOVA_CONFIG"]
-
-    # Create Anova client and stop cook
-    client = AnovaClient(config)
+    # Get WebSocket client from app context (initialized at startup)
+    client = current_app.config["ANOVA_CLIENT"]
     result = client.stop_cook()
 
     # Return success response

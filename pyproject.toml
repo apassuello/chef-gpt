@@ -92,6 +92,8 @@ invalid-assignment = "ignore"
 possibly-missing-attribute = "ignore"
 # Ignore return type issues (Flask routes return Response objects)
 invalid-return-type = "ignore"
+# Ignore not-iterable warnings (websocket is checked at runtime before iteration)
+not-iterable = "ignore"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

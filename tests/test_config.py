@@ -10,10 +10,10 @@ Test coverage goal: >80%
 
 Reference: CLAUDE.md Section "Configuration Management"
 Reference: docs/03-component-architecture.md Section 4.4.1 (COMP-CFG-01)
+Reference: WebSocket migration - uses PERSONAL_ACCESS_TOKEN instead of email/password
 """
 
 import json
-from pathlib import Path
 
 import pytest
 
@@ -33,12 +33,9 @@ def clean_env(monkeypatch):
     between test runs.
     """
     config_vars = [
-        "ANOVA_EMAIL",
-        "ANOVA_PASSWORD",
-        "DEVICE_ID",
+        "PERSONAL_ACCESS_TOKEN",
         "API_KEY",
         "DEBUG",
-        "FIREBASE_API_KEY",
         "ENCRYPTION_KEY",
     ]
 
@@ -53,9 +50,7 @@ def mock_env_vars(monkeypatch, clean_env):
 
     Provides complete configuration via environment variables.
     """
-    monkeypatch.setenv("ANOVA_EMAIL", "test@example.com")
-    monkeypatch.setenv("ANOVA_PASSWORD", "test-password")
-    monkeypatch.setenv("DEVICE_ID", "test-device-123")
+    monkeypatch.setenv("PERSONAL_ACCESS_TOKEN", "anova-test-token-123")
     monkeypatch.setenv("API_KEY", "sk-anova-test-key")
     monkeypatch.setenv("DEBUG", "true")
 
@@ -72,9 +67,7 @@ def temp_config_json(tmp_path):
         Path to temporary JSON config file
     """
     config_data = {
-        "anova_email": "json@example.com",
-        "anova_password": "json-password",
-        "device_id": "json-device-456",
+        "personal_access_token": "anova-json-token-456",
         "api_key": "sk-anova-json-key",
         "debug": False,
     }
@@ -101,72 +94,52 @@ def test_load_from_environment_success(mock_env_vars):
     """
     config = Config.load()
 
-    assert config.ANOVA_EMAIL == "test@example.com"
-    assert config.ANOVA_PASSWORD == "test-password"
-    assert config.DEVICE_ID == "test-device-123"
+    assert config.PERSONAL_ACCESS_TOKEN == "anova-test-token-123"
     assert config.API_KEY == "sk-anova-test-key"
     assert config.DEBUG is True
 
 
-def test_load_from_environment_missing_email(monkeypatch, clean_env):
+def test_load_from_environment_missing_token(monkeypatch, clean_env):
     """
-    TC-CFG-02: Missing ANOVA_EMAIL should raise ValueError.
+    TC-CFG-02: Missing PERSONAL_ACCESS_TOKEN should raise ValueError.
 
     Verifies:
     - Missing required field detected
     - Error message is helpful
     """
-    monkeypatch.setenv("ANOVA_PASSWORD", "test-password")
-    monkeypatch.setenv("DEVICE_ID", "test-device-123")
+    monkeypatch.setenv("API_KEY", "sk-anova-test-key")
 
     with pytest.raises(ValueError) as exc_info:
         Config.load()
 
-    assert "ANOVA_EMAIL" in str(exc_info.value)
+    assert "PERSONAL_ACCESS_TOKEN" in str(exc_info.value)
 
 
-def test_load_from_environment_missing_password(monkeypatch, clean_env):
+def test_load_from_environment_missing_api_key(monkeypatch, clean_env):
     """
-    TC-CFG-03: Missing ANOVA_PASSWORD should raise ValueError.
+    TC-CFG-03: Missing API_KEY should raise ValueError.
     """
-    monkeypatch.setenv("ANOVA_EMAIL", "test@example.com")
-    monkeypatch.setenv("DEVICE_ID", "test-device-123")
+    monkeypatch.setenv("PERSONAL_ACCESS_TOKEN", "anova-test-token-123")
 
     with pytest.raises(ValueError) as exc_info:
         Config.load()
 
-    assert "ANOVA_PASSWORD" in str(exc_info.value)
+    assert "API_KEY" in str(exc_info.value)
 
 
-def test_load_from_environment_missing_device_id(monkeypatch, clean_env):
+def test_load_from_environment_optional_debug(monkeypatch, clean_env):
     """
-    TC-CFG-04: Missing DEVICE_ID should raise ValueError.
-    """
-    monkeypatch.setenv("ANOVA_EMAIL", "test@example.com")
-    monkeypatch.setenv("ANOVA_PASSWORD", "test-password")
-
-    with pytest.raises(ValueError) as exc_info:
-        Config.load()
-
-    assert "DEVICE_ID" in str(exc_info.value)
-
-
-def test_load_from_environment_optional_fields(monkeypatch, clean_env):
-    """
-    TC-CFG-05: Optional fields (API_KEY, DEBUG) should have defaults.
+    TC-CFG-05: Optional DEBUG field should have default value.
 
     Verifies:
-    - API_KEY defaults to None when not set
     - DEBUG defaults to False when not set
     """
-    monkeypatch.setenv("ANOVA_EMAIL", "test@example.com")
-    monkeypatch.setenv("ANOVA_PASSWORD", "test-password")
-    monkeypatch.setenv("DEVICE_ID", "test-device-123")
-    # Deliberately not setting API_KEY or DEBUG
+    monkeypatch.setenv("PERSONAL_ACCESS_TOKEN", "anova-test-token-123")
+    monkeypatch.setenv("API_KEY", "sk-anova-test-key")
+    # Deliberately not setting DEBUG
 
     config = Config.load()
 
-    assert config.API_KEY is None
     assert config.DEBUG is False
 
 
@@ -183,16 +156,9 @@ def test_load_from_json_success(clean_env, temp_config_json, monkeypatch):
     - Config.load() finds and loads JSON file
     - JSON keys mapped correctly to Config fields
     """
-    # Mock the config path to point to temp file
-    monkeypatch.setattr(
-        "server.config.Path", lambda x: temp_config_json.parent if "__file__" in str(x) else Path(x)
-    )
-
     config = Config._from_json_file(temp_config_json)
 
-    assert config.ANOVA_EMAIL == "json@example.com"
-    assert config.ANOVA_PASSWORD == "json-password"
-    assert config.DEVICE_ID == "json-device-456"
+    assert config.PERSONAL_ACCESS_TOKEN == "anova-json-token-456"
     assert config.API_KEY == "sk-anova-json-key"
     assert config.DEBUG is False
 
@@ -206,9 +172,8 @@ def test_load_from_json_missing_field(tmp_path, clean_env):
     - Error message helpful
     """
     incomplete_config = {
-        "anova_email": "json@example.com",
-        "anova_password": "json-password",
-        # Missing device_id
+        "personal_access_token": "anova-token",
+        # Missing api_key
     }
 
     config_file = tmp_path / "incomplete.json"
@@ -231,31 +196,12 @@ def test_environment_takes_priority_over_json(mock_env_vars, temp_config_json, m
     - When both env vars and JSON exist, env vars are used
     - Priority order: env > encrypted > JSON
     """
-    # Create a mock Path that returns the temp directory
-    original_path = Path
-
-    class MockPath:
-        def __init__(self, path):
-            self._path = original_path(path)
-
-        def __truediv__(self, other):
-            if "credentials.json" in str(other):
-                return temp_config_json
-            return self._path / other
-
-        def exists(self):
-            return False  # Encrypted file doesn't exist
-
-        @property
-        def parent(self):
-            return MockPath(self._path.parent)
-
     # Since env vars are set (via mock_env_vars), they should take priority
     config = Config.load()
 
     # Should use environment values, not JSON values
-    assert config.ANOVA_EMAIL == "test@example.com"  # From env, not "json@example.com"
-    assert config.DEVICE_ID == "test-device-123"  # From env, not "json-device-456"
+    assert config.PERSONAL_ACCESS_TOKEN == "anova-test-token-123"  # From env
+    assert config.API_KEY == "sk-anova-test-key"  # From env
 
 
 def test_no_config_source_available(clean_env):
@@ -270,7 +216,7 @@ def test_no_config_source_available(clean_env):
         Config.load()
 
     error_msg = str(exc_info.value)
-    assert "Configuration not found" in error_msg or "ANOVA_EMAIL" in error_msg
+    assert "Configuration not found" in error_msg or "PERSONAL_ACCESS_TOKEN" in error_msg
 
 
 # ==============================================================================
@@ -303,9 +249,8 @@ def test_safety_constants_not_configurable(monkeypatch, clean_env):
     - Even if someone sets MIN_TEMP_CELSIUS in env, it's ignored
     - Safety constants are always hardcoded
     """
-    monkeypatch.setenv("ANOVA_EMAIL", "test@example.com")
-    monkeypatch.setenv("ANOVA_PASSWORD", "test-password")
-    monkeypatch.setenv("DEVICE_ID", "test-device-123")
+    monkeypatch.setenv("PERSONAL_ACCESS_TOKEN", "anova-test-token-123")
+    monkeypatch.setenv("API_KEY", "sk-anova-test-key")
 
     # Try to override safety constants (should be ignored)
     monkeypatch.setenv("MIN_TEMP_CELSIUS", "10.0")
