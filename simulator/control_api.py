@@ -151,6 +151,7 @@ class ControlAPI:
                 try:
                     new_state = DeviceState(state_str)
                     self.simulator.state.job_status.state = new_state
+                    self.simulator.state.job.mode = new_state.value  # Keep job.mode in sync
                 except ValueError:
                     return self._error_response(
                         "INVALID_STATE",

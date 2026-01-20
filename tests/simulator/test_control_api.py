@@ -122,9 +122,34 @@ async def test_ctl02_set_state_to_cooking(simulator_with_control, ctl_url):
 
     # Verify state was updated
     assert sim.state.job_status.state == DeviceState.COOKING
+    assert sim.state.job.mode == "COOKING"  # Must match job_status.state (spec Section 4.4)
     assert sim.state.temperature_info.water_temperature == 65.0
     assert sim.state.job.target_temperature == 65.0
     assert sim.state.job_status.cook_time_remaining == 3600
+
+
+@pytest.mark.asyncio
+async def test_set_state_maintains_job_mode_invariant(simulator_with_control, ctl_url):
+    """Verify job.mode always matches job_status.state (spec Section 4.4 invariant)."""
+    sim, control = simulator_with_control
+
+    # Test all state transitions via /set-state
+    states_to_test = ["PREHEATING", "COOKING", "DONE", "IDLE"]
+
+    for state in states_to_test:
+        async with aiohttp.ClientSession() as session:
+            async with session.post(
+                f"{ctl_url}/set-state",
+                json={"state": state},
+            ) as resp:
+                assert resp.status == 200
+
+        # Verify invariant: job.mode must equal job_status.state
+        assert sim.state.job_status.state.value == state
+        assert sim.state.job.mode == state, (
+            f"job.mode invariant violated: job_status.state={state}, "
+            f"job.mode={sim.state.job.mode}"
+        )
 
 
 # =============================================================================

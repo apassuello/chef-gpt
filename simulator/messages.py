@@ -56,6 +56,11 @@ class ErrorCode:
     AUTH_FAILED = "AUTH_FAILED"
     TOKEN_EXPIRED = "TOKEN_EXPIRED"
     WATER_LEVEL_CRITICAL = "WATER_LEVEL_CRITICAL"
+    WATER_LEVEL_LOW = "WATER_LEVEL_LOW"
+    HEATER_OVERTEMP = "HEATER_OVERTEMP"
+    TRIAC_OVERTEMP = "TRIAC_OVERTEMP"
+    WATER_LEAK = "WATER_LEAK"
+    MOTOR_STUCK = "MOTOR_STUCK"
 
 
 # ==============================================================================

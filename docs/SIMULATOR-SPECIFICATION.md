@@ -807,12 +807,33 @@ Get message history (for debugging).
 
 ### 8.2 Network Condition Simulation
 
+All network conditions are simulated via the unified `/trigger-error` endpoint:
+
 | Condition | Trigger | Behavior |
 |-----------|---------|----------|
-| Disconnect | `POST /set-offline` | Close WebSocket with code 1006 |
-| Latency | `POST /set-latency {"ms": 500}` | Delay all responses |
-| Timeout | `POST /set-timeout {"enabled": true}` | Don't respond to commands |
-| Intermittent | `POST /set-intermittent {"failure_rate": 0.3}` | Random failures |
+| Disconnect | `POST /set-offline {"offline": true}` | Close WebSocket with code 1006 |
+| Latency | `POST /trigger-error {"error_type": "network_latency", "latency_ms": 500}` | Delay all responses |
+| Intermittent | `POST /trigger-error {"error_type": "intermittent_failure", "failure_rate": 0.3}` | Random failures |
+
+**Example: Trigger network latency**
+```json
+POST /trigger-error
+{
+  "error_type": "network_latency",
+  "latency_ms": 1000,
+  "duration": 30.0
+}
+```
+
+**Example: Trigger intermittent failures**
+```json
+POST /trigger-error
+{
+  "error_type": "intermittent_failure",
+  "failure_rate": 0.3,
+  "duration": 60.0
+}
+```
 
 ---
 
