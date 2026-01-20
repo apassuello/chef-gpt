@@ -113,7 +113,7 @@ omit = [
 
 [tool.coverage.report]
 # Fail if coverage is below this percentage
-fail_under = 70
+fail_under = 75
 show_missing = true
 skip_covered = false
 exclude_lines = [
