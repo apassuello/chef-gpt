@@ -7,7 +7,7 @@
 
 > Natural language control of Anova Precision Cooker via ChatGPT
 
-**Status:** 186 tests passing | 74% coverage | WebSocket migration complete | CI enforced
+**Status:** 223 tests passing (99 unit + 91 simulator + 33 E2E) | 74% coverage | WebSocket migration complete | CI enforced
 
 ---
 
@@ -31,10 +31,11 @@ ChatGPT Custom GPT ←→ Flask API Server ←→ Anova WebSocket API ←→ Phy
 ### ✅ WebSocket Migration & Simulator Integration Complete (2026-01-20)
 
 **Test Coverage:**
-- ✅ **186/186 tests passing** (58 unit + 90 simulator + 38 E2E)
+- ✅ **223/223 tests passing** (99 unit + 91 simulator + 33 E2E)
 - ✅ 74% code coverage
 - ✅ All critical paths tested
-- ✅ Test execution time: 13.99s
+- ✅ E2E tests fully operational with SimulatorThread pattern
+- ✅ Test execution time: ~14s
 - ✅ CI enforced quality gates (lint, typecheck, tests)
 
 **Component Implementation Status:**
@@ -48,10 +49,20 @@ ChatGPT Custom GPT ←→ Flask API Server ←→ Anova WebSocket API ←→ Phy
 
 **Simulator Infrastructure:**
 - ✅ **simulator/** - Complete Anova device simulator (10k+ lines)
-- ✅ **tests/e2e/** - E2E test infrastructure (29 tests, timing issues to resolve)
+- ✅ **tests/e2e/** - E2E test infrastructure (32 tests, all passing)
+- ✅ **tests/simulator/** - Simulator unit tests (91 tests)
 - ✅ **demo/** - Interactive demo system with 7 cooking scenarios
 
 **Total Production Code:** ~12,000 lines (server + simulator + tests)
+
+**Recent Achievement (2026-01-20):**
+- Fixed E2E test timing issues using SimulatorThread pattern
+- All 32 E2E tests now pass reliably without pytest-asyncio conflicts
+- Added response error checking to start_cook/stop_cook operations
+- Fixed websockets 15.x compatibility issues
+- Implemented PID-based port isolation for parallel test execution
+- **Note:** E2E tests excluded from CI (run locally for full validation)
+- **See:** `docs/E2E_TEST_FIX_AUDIT_REPORT.md` for technical details
 
 ### ✅ Scaffolding Complete (2026-01-09)
 
@@ -258,13 +269,31 @@ Legend: ✅ Complete | 🏗️ Stub (ready for implementation)
 ### Testing
 
 ```bash
-# When tests are implemented:
-pytest                          # Run all tests
-pytest --cov=server            # With coverage
-pytest tests/test_validators.py # Specific file
-pytest -v                      # Verbose
-pytest -x                      # Stop on first failure
+# Run all tests (223 total)
+pytest                          # All tests
+pytest -v                       # Verbose output
+pytest --cov=server            # With coverage report
+
+# Run specific test categories
+pytest tests/test_*.py         # Unit tests (99 tests)
+pytest tests/simulator/        # Simulator tests (91 tests)
+pytest tests/e2e/              # E2E tests (33 tests)
+
+# Run specific test file
+pytest tests/test_validators.py -v
+
+# Stop on first failure
+pytest -x
+
+# Run tests with duration report
+pytest --durations=10
 ```
+
+**Note on CI Testing:**
+- CI runs unit tests and simulator tests (190 tests)
+- E2E tests excluded from CI to reduce complexity
+- Run full test suite locally before pushing: `pytest -v`
+- E2E tests validate full server ↔ simulator ↔ client integration
 
 ### Code Quality
 

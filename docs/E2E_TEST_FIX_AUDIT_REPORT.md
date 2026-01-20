@@ -1,23 +1,148 @@
-# E2E Test Timing Fix - Audit Report
+# E2E Test Fix - Implementation Report
 
 **Date**: 2026-01-20
-**Auditor**: Claude Code Review Agent
-**Status**: CRITICAL ISSUES FOUND - Implementation incomplete
+**Status**: ✅ RESOLVED - All 223 tests passing
 
 ---
 
 ## Executive Summary
 
-The E2E test timing fix implementation has fundamental issues that prevent it from working. While the architectural approach is sound, the execution has several critical bugs.
+**FINAL STATUS: SUCCESS** - All E2E tests now pass reliably using the SimulatorThread pattern.
 
-**Current State**: E2E tests fail with "Device discovery timeout" because:
-1. WebSocket handshake times out during connection
-2. Client never receives device list from simulator
-3. `wait_for_device()` correctly reports the failure
+**Test Results:**
+- ✅ 223/223 tests passing (99 unit + 91 simulator + 33 E2E)
+- ✅ E2E tests fully operational
+- ✅ No pytest-asyncio deadlocks
+- ✅ Tests run in ~14 seconds
+
+**Key Technical Solutions:**
+1. SimulatorThread class runs simulator in isolated background thread
+2. Response error checking added to start_cook/stop_cook operations
+3. websockets 15.x compatibility fixes (removed deprecated params)
+4. Nested EVENT_APC_STATE message parsing fixed
+5. PID-based port isolation for parallel test execution
 
 ---
 
-## 1. CRITICAL ISSUES
+## Original Issues Identified (Now Resolved)
+
+~~**Current State**: E2E tests fail with "Device discovery timeout" because:~~
+1. ~~WebSocket handshake times out during connection~~
+2. ~~Client never receives device list from simulator~~
+3. ~~`wait_for_device()` correctly reports the failure~~
+
+**Resolution**: Issues were caused by mixing pytest-asyncio with WebSocket server startup in the same event loop. SimulatorThread pattern resolved this.
+
+---
+
+## Resolution Details
+
+### SimulatorThread Pattern
+
+**Problem**: Mixing pytest-asyncio with WebSocket server in the same event loop caused deadlocks during test setup.
+
+**Solution**: Created `SimulatorThread` class in `tests/e2e/conftest.py` that:
+- Runs simulator WebSocket server in isolated background thread
+- Creates dedicated asyncio event loop for simulator
+- Provides clean startup/shutdown lifecycle
+- Eliminates event loop conflicts with pytest-asyncio
+
+**Code Location**: `tests/e2e/conftest.py:168-222`
+
+```python
+class SimulatorThread:
+    """Run simulator in background thread with isolated event loop."""
+    def __init__(self, simulator_app, control_api):
+        self.simulator_app = simulator_app
+        self.control_api = control_api
+        self.thread = None
+        self.loop = None
+        self.stop_event = threading.Event()
+
+    def start(self):
+        """Start simulator in background thread."""
+        self.thread = threading.Thread(target=self._run, daemon=True)
+        self.thread.start()
+        time.sleep(0.5)  # Allow startup
+
+    def stop(self):
+        """Stop simulator gracefully."""
+        self.stop_event.set()
+        self.thread.join(timeout=5.0)
+```
+
+### Response Error Checking
+
+**Problem**: start_cook and stop_cook operations silently failed when device was offline or busy.
+
+**Solution**: Added explicit error checking in `server/anova_client.py`:
+- Check response status before treating as success
+- Raise appropriate exceptions for error responses
+- Validate response payload structure
+
+**Code Locations**:
+- `server/anova_client.py:494-542` (start_cook)
+- `server/anova_client.py:579-627` (stop_cook)
+
+### Websockets 15.x Compatibility
+
+**Problem**: Using deprecated parameters caused connection failures with websockets 15.x.
+
+**Solution**: Removed deprecated parameters:
+- Removed `loop=` parameter from `websockets.connect()`
+- Removed `loop=` parameter from `websockets.serve()`
+- Let websockets library use current event loop automatically
+
+**Code Locations**:
+- `server/anova_client.py:217-249`
+- `simulator/websocket_server.py:170-185`
+
+### Nested MESSAGE Parsing
+
+**Problem**: EVENT_APC_STATE arrived wrapped in EVENT_MESSAGE envelope, causing parsing failures.
+
+**Solution**: Added unwrapping logic in message handler:
+```python
+if message_type == "EVENT_MESSAGE":
+    # Unwrap nested message
+    nested = payload.get("message", {})
+    message_type = nested.get("messageType")
+    payload = nested.get("payload", {})
+```
+
+**Code Location**: `server/anova_client.py:336-365`
+
+### PID-Based Port Isolation
+
+**Problem**: Parallel pytest processes could collide on port numbers.
+
+**Solution**: Use PID-based port offsets:
+```python
+_base_port = 29000 + (os.getpid() % 1000) * 10
+```
+
+**Code Location**: `tests/e2e/conftest.py:46-67`
+
+---
+
+## Test Breakdown
+
+| Category | Count | Files |
+|----------|-------|-------|
+| **Unit Tests** | 99 | test_anova_client.py (26), test_routes.py (26), test_validators.py (21), test_middleware.py (15), test_config.py (11) |
+| **Simulator Tests** | 91 | test_edge_cases.py (19), test_errors.py (15), test_auth.py (14), test_control_api.py (11), test_commands.py (8), test_integration.py (8), test_physics.py (8), test_websocket.py (8) |
+| **E2E Tests** | 33 | test_e2e_error_handling.py (13), test_e2e_validation.py (11), test_e2e_cook_lifecycle.py (9) |
+| **TOTAL** | **223** | 16 test files |
+
+---
+
+## Original Audit (Historical Reference)
+
+The sections below document the original issues identified before the fix was implemented. All issues have been resolved.
+
+---
+
+## 1. CRITICAL ISSUES (Historical)
 
 ### 1.1 WebSocket Handshake Timeout (BLOCKER)
 
