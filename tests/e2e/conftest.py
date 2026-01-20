@@ -93,8 +93,8 @@ def e2e_sim_config(e2e_ports) -> SimConfig:
         control_port=e2e_ports["control_port"],
         firebase_port=e2e_ports["ws_port"] + 3,  # Not used but required
         time_scale=60.0,  # 1 minute = 1 second
-        heating_rate=60.0,  # Fast heating for tests
-        ambient_temp=22.0,
+        heating_rate=60.0,  # Fast heating for tests (60°C/min = instant preheat)
+        ambient_temp=19.0,  # Room temperature
         valid_tokens=["e2e-test-token"],
     )
 

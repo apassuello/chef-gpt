@@ -298,12 +298,12 @@ class AnovaWebSocketClient:
                             with self.pending_lock:
                                 if request_id in self.pending_requests:
                                     self.pending_requests[request_id].put(data)
-                                    logger.debug(
-                                        f"Routed response {command} to request {request_id}"
+                                    logger.info(
+                                        f"← RECEIVED response for request {request_id} (command: {command})"
                                     )
                                 else:
                                     logger.warning(
-                                        f"Received response for unknown request {request_id}"
+                                        f"← RECEIVED response for UNKNOWN request {request_id} (not in pending: {list(self.pending_requests.keys())})"
                                     )
                         else:
                             logger.warning(f"Response missing requestId: {command}")
@@ -326,12 +326,13 @@ class AnovaWebSocketClient:
         try:
             while True:
                 # Check queue periodically (non-blocking)
-                await asyncio.sleep(0.1)
+                await asyncio.sleep(0.01)  # Check more frequently (10ms vs 100ms)
 
                 try:
                     command = self.command_queue.get_nowait()
-                    await self.websocket.send(json.dumps(command))
-                    logger.debug(f"Sent command: {command.get('command')}")
+                    msg = json.dumps(command)
+                    await self.websocket.send(msg)
+                    logger.info(f"→ SENT command: {command.get('command')} (requestId: {command.get('requestId')})")
                 except queue.Empty:
                     continue
                 except Exception as e:

@@ -226,6 +226,9 @@ class WebSocketServer:
 
         Parses the message, routes to appropriate handler, sends response.
         """
+        import time
+        receive_time = time.time()
+
         # Record message
         self._record_message("inbound", raw_message)
 
@@ -257,7 +260,12 @@ class WebSocketServer:
         handler = self._command_handlers.get(command)
         if handler:
             try:
+                import time
+                handler_start = time.time()
+                logger.info(f"← RECEIVED command: {command} (requestId: {request_id}) - processing...")
                 response = await handler(request_id, payload)
+                handler_end = time.time()
+                logger.info(f"Handler took {(handler_end - handler_start)*1000:.1f}ms")
                 await self._send_message(websocket, response)
                 # Broadcast state update to all clients
                 await self._broadcast_state()
@@ -282,6 +290,7 @@ class WebSocketServer:
         """Send a message to a specific client."""
         raw = json.dumps(message)
         self._record_message("outbound", raw)
+        logger.info(f"→ SENDING to client: {message.get('command')} (requestId: {message.get('requestId')})")
         await websocket.send(raw)
 
     async def _send_device_list(self, websocket: ServerConnection):

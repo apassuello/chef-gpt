@@ -19,6 +19,7 @@ import argparse
 import asyncio
 import signal
 import sys
+import threading
 import time
 
 import requests
@@ -30,6 +31,83 @@ DEFAULT_TIME_SCALE = 60.0
 DEFAULT_WS_PORT = 28765
 DEFAULT_CONTROL_PORT = 28766
 DEFAULT_FLASK_PORT = 28767
+
+
+class SimulatorThread:
+    """
+    Runs the simulator in a background thread with its own event loop.
+
+    This is necessary because the WebSocket client runs in its own background
+    thread. Running both in separate threads prevents event loop blocking issues.
+
+    Reference: tests/e2e/conftest.py SimulatorThread
+    """
+
+    def __init__(self, config):
+        from simulator.config import Config as SimConfig
+        from simulator.server import AnovaSimulator
+        import logging
+
+        self.config = config
+        self.simulator: AnovaSimulator | None = None
+        self.thread: threading.Thread | None = None
+        self.loop: asyncio.AbstractEventLoop | None = None
+        self.ready = threading.Event()
+        self.error: Exception | None = None
+        self.logger = logging.getLogger(__name__)
+
+    def start(self):
+        """Start the simulator in a background thread."""
+        self.thread = threading.Thread(target=self._run, daemon=True, name="SimulatorThread")
+        self.thread.start()
+
+        # Wait for simulator to be ready
+        if not self.ready.wait(timeout=10.0):
+            raise RuntimeError("Simulator failed to start within timeout")
+
+        if self.error:
+            raise self.error
+
+    def _run(self):
+        """Run the simulator's event loop in this thread."""
+        from simulator.server import AnovaSimulator
+
+        try:
+            self.loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(self.loop)
+
+            self.simulator = AnovaSimulator(config=self.config)
+
+            # Start simulator and signal ready
+            self.loop.run_until_complete(self.simulator.start(start_control=True))
+            self.ready.set()
+
+            # Keep running until stopped (this is the key!)
+            self.loop.run_forever()
+
+        except Exception as e:
+            self.logger.error(f"Simulator thread error: {e}")
+            self.error = e
+            self.ready.set()  # Unblock waiter even on error
+        finally:
+            if self.loop:
+                self.loop.close()
+
+    def stop(self):
+        """Stop the simulator and its event loop."""
+        if self.loop and self.simulator:
+            # Schedule stop on the simulator's event loop
+            future = asyncio.run_coroutine_threadsafe(self.simulator.stop(), self.loop)
+            try:
+                future.result(timeout=5.0)
+            except Exception as e:
+                self.logger.error(f"Error stopping simulator: {e}")
+
+            # Stop the event loop
+            self.loop.call_soon_threadsafe(self.loop.stop)
+
+        if self.thread and self.thread.is_alive():
+            self.thread.join(timeout=5.0)
 
 
 class DemoRunner:
@@ -51,7 +129,7 @@ class DemoRunner:
         self.control_port = control_port
         self.flask_port = flask_port
 
-        self.simulator = None
+        self.simulator_thread: SimulatorThread | None = None
         self.flask_process = None
         self._running = False
 
@@ -71,7 +149,6 @@ class DemoRunner:
 
         # Import here to avoid circular imports
         from simulator.config import Config as SimConfig
-        from simulator.server import AnovaSimulator
 
         # Configure simulator
         sim_config = SimConfig(
@@ -79,15 +156,15 @@ class DemoRunner:
             control_port=self.control_port,
             firebase_port=self.ws_port + 10,
             time_scale=self.time_scale,
-            heating_rate=60.0,  # Fast heating for demo
-            ambient_temp=22.0,
+            heating_rate=15.0,  # Realistic heating: 15°C/min = ~2.5s to preheat at 60x speed
+            ambient_temp=19.0,  # Room temperature
             valid_tokens=["demo-token"],
         )
 
-        # Start simulator
+        # Start simulator in background thread
         print("[SETUP] Starting Anova simulator...")
-        self.simulator = AnovaSimulator(config=sim_config)
-        await self.simulator.start(start_control=True)
+        self.simulator_thread = SimulatorThread(sim_config)
+        self.simulator_thread.start()
         print(f"[SETUP] Simulator running on ws://localhost:{self.ws_port}")
         print(f"[SETUP] Control API on http://localhost:{self.control_port}")
 
@@ -128,7 +205,10 @@ from server.anova_client import AnovaWebSocketClient
 from server.middleware import register_error_handlers, setup_request_logging
 from server.routes import api
 import logging
-logging.basicConfig(level=logging.WARNING)
+logging.basicConfig(
+    level=logging.INFO,
+    format='[%(levelname)s] %(name)s: %(message)s'
+)
 
 config = Config(
     PERSONAL_ACCESS_TOKEN="demo-token",
@@ -153,8 +233,8 @@ app.run(host="127.0.0.1", port={self.flask_port}, debug=False, use_reloader=Fals
 """,
             ],
             env=env,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
+            stdout=None,
+            stderr=None,
         )
 
     async def _wait_for_services(self, timeout: float = 30.0):
@@ -183,8 +263,8 @@ app.run(host="127.0.0.1", port={self.flask_port}, debug=False, use_reloader=Fals
             self.flask_process.wait(timeout=5)
             print("[CLEANUP] Flask server stopped")
 
-        if self.simulator:
-            await self.simulator.stop()
+        if self.simulator_thread:
+            self.simulator_thread.stop()
             print("[CLEANUP] Simulator stopped")
 
         print("[CLEANUP] Done!")
