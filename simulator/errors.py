@@ -33,6 +33,9 @@ class ErrorType(Enum):
     MOTOR_STUCK = "motor_stuck"
     NETWORK_LATENCY = "network_latency"
     INTERMITTENT_FAILURE = "intermittent_failure"
+    HEATER_OVERTEMP = "heater_overtemp"
+    TRIAC_OVERTEMP = "triac_overtemp"
+    WATER_LEAK = "water_leak"
 
 
 @dataclass
@@ -230,6 +233,54 @@ class ErrorSimulator:
             # Broadcast state update
             await self.simulator.ws_server._broadcast_state()
 
+        elif error_type == ErrorType.HEATER_OVERTEMP:
+            # Heater overtemperature - stop heating, set flag
+            self.simulator.state.temperature_info.heater_temperature = 150.0  # Critical temp
+            self.simulator.state.heater_control.duty_cycle = 0.0
+            self.simulator.state.pin_info.device_safe = 0
+            # Stop cooking if active
+            from .types import DeviceState
+
+            if self.simulator.state.job_status.state in (
+                DeviceState.COOKING,
+                DeviceState.PREHEATING,
+            ):
+                self.simulator.state.job_status.state = DeviceState.IDLE
+                self.simulator.state.job.mode = "IDLE"
+            await self.simulator.ws_server._broadcast_state()
+
+        elif error_type == ErrorType.TRIAC_OVERTEMP:
+            # Triac overtemperature - stop heating, set flag
+            self.simulator.state.temperature_info.triac_temperature = 100.0  # Critical temp
+            self.simulator.state.heater_control.duty_cycle = 0.0
+            self.simulator.state.pin_info.device_safe = 0
+            # Stop cooking if active
+            from .types import DeviceState
+
+            if self.simulator.state.job_status.state in (
+                DeviceState.COOKING,
+                DeviceState.PREHEATING,
+            ):
+                self.simulator.state.job_status.state = DeviceState.IDLE
+                self.simulator.state.job.mode = "IDLE"
+            await self.simulator.ws_server._broadcast_state()
+
+        elif error_type == ErrorType.WATER_LEAK:
+            # Water leak detected - stop cooking immediately
+            self.simulator.state.pin_info.water_leak = 1
+            self.simulator.state.pin_info.device_safe = 0
+            from .types import DeviceState
+
+            if self.simulator.state.job_status.state in (
+                DeviceState.COOKING,
+                DeviceState.PREHEATING,
+            ):
+                self.simulator.state.job_status.state = DeviceState.IDLE
+                self.simulator.state.job.mode = "IDLE"
+                self.simulator.state.heater_control.duty_cycle = 0.0
+                self.simulator.state.motor_control.duty_cycle = 0.0
+            await self.simulator.ws_server._broadcast_state()
+
         # NETWORK_LATENCY and INTERMITTENT_FAILURE don't modify state directly
 
     async def _remove_error(self, error_type: ErrorType):
@@ -259,6 +310,21 @@ class ErrorSimulator:
                 DeviceState.PREHEATING,
             ):
                 self.simulator.state.motor_info.rpm = 1200
+            await self.simulator.ws_server._broadcast_state()
+
+        elif error_type == ErrorType.HEATER_OVERTEMP:
+            self.simulator.state.temperature_info.heater_temperature = 65.0  # Normal temp
+            self.simulator.state.pin_info.device_safe = 1
+            await self.simulator.ws_server._broadcast_state()
+
+        elif error_type == ErrorType.TRIAC_OVERTEMP:
+            self.simulator.state.temperature_info.triac_temperature = 40.0  # Normal temp
+            self.simulator.state.pin_info.device_safe = 1
+            await self.simulator.ws_server._broadcast_state()
+
+        elif error_type == ErrorType.WATER_LEAK:
+            self.simulator.state.pin_info.water_leak = 0
+            self.simulator.state.pin_info.device_safe = 1
             await self.simulator.ws_server._broadcast_state()
 
     async def _schedule_clear(self, error_type: ErrorType, duration: float):

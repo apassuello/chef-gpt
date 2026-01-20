@@ -24,6 +24,8 @@ from typing import Optional
 from .config import Config
 from .types import CookerState, DeviceState, generate_cook_id
 from .websocket_server import WebSocketServer
+from .firebase_mock import FirebaseMock
+from .control_api import ControlAPI
 from .messages import (
     build_success_response,
     build_error_response,
@@ -91,6 +93,8 @@ class AnovaSimulator:
 
         # Initialize servers
         self.ws_server = WebSocketServer(self.config, self.state)
+        self.firebase_mock: Optional[FirebaseMock] = None
+        self.control_api: Optional[ControlAPI] = None
 
         # Register command handlers
         self._register_handlers()
@@ -106,14 +110,38 @@ class AnovaSimulator:
         self.ws_server.register_handler(CMD_APC_SET_TARGET_TEMP, self._handle_set_temp)
         self.ws_server.register_handler(CMD_APC_SET_TIMER, self._handle_set_timer)
 
-    async def start(self, host: str = "localhost"):
-        """Start all simulator components."""
+    async def start(
+        self,
+        host: str = "localhost",
+        start_firebase: bool = False,
+        start_control: bool = False,
+    ):
+        """
+        Start all simulator components.
+
+        Args:
+            host: Host to bind servers to
+            start_firebase: Whether to start Firebase mock server
+            start_control: Whether to start Control API server
+        """
         logger.info(f"Starting Anova Simulator (time_scale={self.config.time_scale})")
 
         self._running = True
 
         # Start WebSocket server
         await self.ws_server.start(host)
+
+        # Start Firebase mock if requested
+        if start_firebase:
+            self.firebase_mock = FirebaseMock(self.config)
+            await self.firebase_mock.start(host)
+            logger.info(f"Firebase mock started on port {self.config.firebase_port}")
+
+        # Start Control API if requested
+        if start_control:
+            self.control_api = ControlAPI(self.config, self)
+            await self.control_api.start(host)
+            logger.info(f"Control API started on port {self.config.control_port}")
 
         # Start physics loop
         self._physics_task = asyncio.create_task(self._physics_loop())
@@ -133,6 +161,16 @@ class AnovaSimulator:
             except asyncio.CancelledError:
                 pass
 
+        # Stop Control API
+        if self.control_api:
+            await self.control_api.stop()
+            self.control_api = None
+
+        # Stop Firebase mock
+        if self.firebase_mock:
+            await self.firebase_mock.stop()
+            self.firebase_mock = None
+
         # Stop WebSocket server
         await self.ws_server.stop()
 
@@ -141,6 +179,7 @@ class AnovaSimulator:
     def reset(self):
         """Reset simulator to initial state."""
         self.state.job_status.state = DeviceState.IDLE
+        self.state.job.mode = "IDLE"  # Keep in sync with job_status.state
         self.state.job.target_temperature = 0.0
         self.state.job.cook_time_seconds = 0
         self.state.job_status.cook_time_remaining = 0
@@ -183,24 +222,39 @@ class AnovaSimulator:
                 f"Invalid payload: {e}",
             )
 
-        # Convert temperature if needed
+        # Validate and convert temperature
         if unit == "F":
+            # Validate Fahrenheit range before conversion (104°F = 40°C, 212°F = 100°C)
+            min_temp_f = self.config.min_temp_celsius * 9 / 5 + 32  # 104°F
+            max_temp_f = self.config.max_temp_celsius * 9 / 5 + 32  # 212°F
+            if target_temp < min_temp_f:
+                return build_error_response(
+                    request_id,
+                    ErrorCode.INVALID_TEMPERATURE,
+                    f"Temperature {target_temp}°F is below minimum {min_temp_f:.0f}°F",
+                )
+            if target_temp > max_temp_f:
+                return build_error_response(
+                    request_id,
+                    ErrorCode.INVALID_TEMPERATURE,
+                    f"Temperature {target_temp}°F is above maximum {max_temp_f:.0f}°F",
+                )
+            # Convert to Celsius
             target_temp = (target_temp - 32) * 5 / 9
-
-        # Validate temperature
-        if target_temp < self.config.min_temp_celsius:
-            return build_error_response(
-                request_id,
-                ErrorCode.INVALID_TEMPERATURE,
-                f"Temperature {target_temp}°C is below minimum {self.config.min_temp_celsius}°C",
-            )
-
-        if target_temp > self.config.max_temp_celsius:
-            return build_error_response(
-                request_id,
-                ErrorCode.INVALID_TEMPERATURE,
-                f"Temperature {target_temp}°C is above maximum {self.config.max_temp_celsius}°C",
-            )
+        else:
+            # Validate Celsius range
+            if target_temp < self.config.min_temp_celsius:
+                return build_error_response(
+                    request_id,
+                    ErrorCode.INVALID_TEMPERATURE,
+                    f"Temperature {target_temp}°C is below minimum {self.config.min_temp_celsius}°C",
+                )
+            if target_temp > self.config.max_temp_celsius:
+                return build_error_response(
+                    request_id,
+                    ErrorCode.INVALID_TEMPERATURE,
+                    f"Temperature {target_temp}°C is above maximum {self.config.max_temp_celsius}°C",
+                )
 
         # Validate timer
         if timer < self.config.min_timer_seconds:
@@ -219,7 +273,7 @@ class AnovaSimulator:
 
         # Start cooking
         self.state.job.id = generate_cook_id()
-        self.state.job.mode = "COOK"
+        self.state.job.mode = "PREHEATING"  # Matches job_status.state
         self.state.job.target_temperature = target_temp
         self.state.job.cook_time_seconds = timer
         self.state.job_status.cook_time_remaining = timer
@@ -270,24 +324,39 @@ class AnovaSimulator:
                 f"Invalid payload: {e}",
             )
 
-        # Convert temperature if needed
+        # Validate and convert temperature
         if unit == "F":
+            # Validate Fahrenheit range before conversion (104°F = 40°C, 212°F = 100°C)
+            min_temp_f = self.config.min_temp_celsius * 9 / 5 + 32  # 104°F
+            max_temp_f = self.config.max_temp_celsius * 9 / 5 + 32  # 212°F
+            if target_temp < min_temp_f:
+                return build_error_response(
+                    request_id,
+                    ErrorCode.INVALID_TEMPERATURE,
+                    f"Temperature {target_temp}°F is below minimum {min_temp_f:.0f}°F",
+                )
+            if target_temp > max_temp_f:
+                return build_error_response(
+                    request_id,
+                    ErrorCode.INVALID_TEMPERATURE,
+                    f"Temperature {target_temp}°F is above maximum {max_temp_f:.0f}°F",
+                )
+            # Convert to Celsius
             target_temp = (target_temp - 32) * 5 / 9
-
-        # Validate temperature
-        if target_temp < self.config.min_temp_celsius:
-            return build_error_response(
-                request_id,
-                ErrorCode.INVALID_TEMPERATURE,
-                f"Temperature {target_temp}°C is below minimum {self.config.min_temp_celsius}°C",
-            )
-
-        if target_temp > self.config.max_temp_celsius:
-            return build_error_response(
-                request_id,
-                ErrorCode.INVALID_TEMPERATURE,
-                f"Temperature {target_temp}°C is above maximum {self.config.max_temp_celsius}°C",
-            )
+        else:
+            # Validate Celsius range
+            if target_temp < self.config.min_temp_celsius:
+                return build_error_response(
+                    request_id,
+                    ErrorCode.INVALID_TEMPERATURE,
+                    f"Temperature {target_temp}°C is below minimum {self.config.min_temp_celsius}°C",
+                )
+            if target_temp > self.config.max_temp_celsius:
+                return build_error_response(
+                    request_id,
+                    ErrorCode.INVALID_TEMPERATURE,
+                    f"Temperature {target_temp}°C is above maximum {self.config.max_temp_celsius}°C",
+                )
 
         self.state.job.target_temperature = target_temp
         logger.info(f"Set target temperature: {target_temp}°C")
@@ -387,6 +456,7 @@ class AnovaSimulator:
         # Check if reached target
         if new_temp >= target - self.config.temp_tolerance:
             self.state.job_status.state = DeviceState.COOKING
+            self.state.job.mode = "COOKING"  # Keep in sync with job_status.state
             self.state.temperature_info.water_temperature = target
             logger.info(f"Reached target temperature: {target}°C, starting timer")
 
@@ -410,6 +480,7 @@ class AnovaSimulator:
         # Check if timer expired
         if new_remaining <= 0:
             self.state.job_status.state = DeviceState.DONE
+            self.state.job.mode = "DONE"  # Keep in sync with job_status.state
             self.state.job_status.cook_time_remaining = 0
             logger.info("Cook complete, timer expired")
 
@@ -465,8 +536,8 @@ async def main():
     for sig in (signal.SIGINT, signal.SIGTERM):
         loop.add_signal_handler(sig, shutdown)
 
-    # Start simulator
-    await simulator.start()
+    # Start simulator with all components
+    await simulator.start(start_firebase=True, start_control=True)
 
     # Keep running until stopped
     try:

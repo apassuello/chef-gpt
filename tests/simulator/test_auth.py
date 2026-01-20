@@ -16,7 +16,7 @@ from simulator.firebase_mock import FirebaseMock
 from simulator.server import AnovaSimulator
 from simulator.config import Config
 
-pytestmark = pytest.mark.asyncio(loop_scope="function")
+# Note: Only async tests should be marked with @pytest.mark.asyncio
 
 # Unique ports for auth tests
 PORT_FB = 18850

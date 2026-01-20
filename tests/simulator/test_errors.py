@@ -18,7 +18,7 @@ from simulator.errors import ErrorSimulator, ErrorType
 from simulator.config import Config
 from simulator.types import DeviceState
 
-pytestmark = pytest.mark.asyncio(loop_scope="function")
+# Note: Only async tests should be marked with @pytest.mark.asyncio
 
 # Unique ports for error tests
 PORT_WS = 18950
